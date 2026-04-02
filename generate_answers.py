@@ -29,13 +29,12 @@ load_dotenv()
 # ============================================================
 # 配置
 # ============================================================
-API_KEY    = "sk-SrQRDlXzOIgQz9ciSq9SABqkOFmpGJHQO3BU95Bo01ap63VH"
-MODEL_NAME = "gemini-3-flash-preview"
-BASE_URL   = "http://35.220.164.252:3888/v1"
+API_KEY    = os.environ.get("API_KEY", "")
+MODEL_NAME = os.environ.get("MODEL_NAME", "qwen-vl-max")
+BASE_URL   = os.environ.get("BASE_URL", "")
 
-TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
-SERPAPI_KEY    = os.environ.get("SERPAPI_KEY", "")
-E2B_API_KEY    = os.environ.get("E2B_API_KEY", "")
+SERPER_KEY  = os.environ.get("SERPER_KEY", "")
+E2B_API_KEY = os.environ.get("E2B_API_KEY", "")
 
 INPUT_FILE  = "synthetic_qa.jsonl"
 OUTPUT_FILE = "answered_data.jsonl"
@@ -116,21 +115,21 @@ AGENT_EXECUTE_PROMPT = """\
 # ============================================================
 
 def tool_web_search(query: str, max_results: int = 5) -> str:
-    if not TAVILY_API_KEY:
-        return "[web_search] 未配置 TAVILY_API_KEY"
+    if not SERPER_KEY:
+        return "[web_search] 未配置 SERPER_KEY"
     try:
         resp = requests.post(
-            "https://api.tavily.com/search",
-            json={"query": query, "max_results": max_results, "include_answer": True},
-            headers={"Authorization": f"Bearer {TAVILY_API_KEY}"},
+            "https://google.serper.dev/search",
+            json={"q": query, "num": max_results},
+            headers={"X-API-KEY": SERPER_KEY, "Content-Type": "application/json"},
             timeout=20,
         )
         data = resp.json()
         parts = []
-        if data.get("answer"):
-            parts.append(f"[摘要] {data['answer']}")
-        for r in data.get("results", []):
-            parts.append(f"[{r['title']}] {r['url']}\n{r.get('content', '')[:300]}")
+        if data.get("answerBox", {}).get("answer"):
+            parts.append(f"[摘要] {data['answerBox']['answer']}")
+        for r in data.get("organic", []):
+            parts.append(f"[{r['title']}] {r['link']}\n{r.get('snippet', '')[:300]}")
         return "\n\n".join(parts)[:TOOL_OUTPUT_LIMIT]
     except Exception as e:
         return f"[web_search 异常] {e}"
@@ -142,46 +141,44 @@ def tool_image_search(
     image_b64: str = "",
     max_results: int = 5,
 ) -> str:
-    if not SERPAPI_KEY:
-        return "[image_search] 未配置 SERPAPI_KEY"
+    if not SERPER_KEY:
+        return "[image_search] 未配置 SERPER_KEY"
     try:
         if search_type == "reverse":
-            # Google Lens 需要先把图片上传到 imgur/tmpfiles 拿到公网 URL，再传给 SerpAPI
+            # Google Lens：先把图片上传到 tmpfiles 拿到公网 URL，再传给 Serper
             raw_b64 = image_b64.split(",", 1)[-1] if "," in image_b64 else image_b64
             img_bytes = base64.b64decode(raw_b64)
 
-            # 上传到 tmpfiles.org 获取临时公网 URL
             upload_resp = requests.post(
                 "https://tmpfiles.org/api/v1/upload",
                 files={"file": ("image.jpg", img_bytes, "image/jpeg")},
                 timeout=30,
             )
             upload_data = upload_resp.json()
-            # tmpfiles 返回 https://tmpfiles.org/XXXX/image.jpg
-            # 直链需要把路径改为 /dl/ 前缀
             page_url = upload_data["data"]["url"]
             direct_url = page_url.replace("tmpfiles.org/", "tmpfiles.org/dl/")
 
-            params = {
-                "engine": "google_lens",
-                "url": direct_url,
-                "api_key": SERPAPI_KEY,
-            }
-            resp = requests.get("https://serpapi.com/search", params=params, timeout=30)
+            resp = requests.post(
+                "https://google.serper.dev/lens",
+                json={"url": direct_url},
+                headers={"X-API-KEY": SERPER_KEY, "Content-Type": "application/json"},
+                timeout=30,
+            )
+            data = resp.json()
+            items = data.get("visual_matches", [])[:max_results]
         else:
-            params = {
-                "engine": "google_images",
-                "q": query,
-                "num": max_results,
-                "api_key": SERPAPI_KEY,
-            }
-            resp = requests.get("https://serpapi.com/search", params=params, timeout=20)
+            resp = requests.post(
+                "https://google.serper.dev/images",
+                json={"q": query, "num": max_results},
+                headers={"X-API-KEY": SERPER_KEY, "Content-Type": "application/json"},
+                timeout=20,
+            )
+            data = resp.json()
+            items = data.get("images", [])[:max_results]
 
         if not resp.text.strip():
             return "[image_search] 接口返回空响应"
-        data = resp.json()
-        items = data.get("image_results", data.get("visual_matches", []))[:max_results]
-        lines = [f"- {it.get('title', '')} | {it.get('link', it.get('source', ''))}" for it in items]
+        lines = [f"- {it.get('title', '')} | {it.get('link', it.get('imageUrl', ''))}" for it in items]
         return "\n".join(lines) if lines else "[image_search] 无结果"
     except Exception as e:
         return f"[image_search 异常] {e}"
@@ -375,8 +372,7 @@ def main():
 
     log("=" * 60)
     log(f"输入: {args.input}  输出: {args.output}  断点续跑: {args.resume}")
-    log(f"Tavily: {'✓' if TAVILY_API_KEY else '✗'}  "
-        f"SerpAPI: {'✓' if SERPAPI_KEY else '✗'}  "
+    log(f"Serper: {'✓' if SERPER_KEY else '✗'}  "
         f"E2B: {'✓' if E2B_API_KEY else '✗'}")
     log("=" * 60)
 
