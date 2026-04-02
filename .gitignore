@@ -1,0 +1,15 @@
+.env
+*.jsonl
+images/
+run.log
+__pycache__/
+*.pyc
+*.pyo
+output/
+.claude/
+*.log
+*.jpg
+*.jpeg
+*.png
+*.html
+.DS_Store
