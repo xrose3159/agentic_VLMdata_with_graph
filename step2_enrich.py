@@ -20,8 +20,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import httpx
 
-# 搜索/Jina 请求需要绕过代理，与 VLM 客户端保持一致
+# 搜索请求绕过代理（Serper 直连）
 _http = httpx.Client(trust_env=False, timeout=30)
+# Jina Reader 需要系统证书，不能禁 trust_env
+_jina_http = httpx.Client(timeout=30)
 
 from core.config import (
     FILTERED_IMAGE_DIR, ENTITY_DIR, MAX_WORKERS,
@@ -130,6 +132,14 @@ TRIPLE_EXTRACTION_PROMPT = """\
    - PERSON: 具体人物
    - ORG: 公司/机构/组织
    - OTHER: 以上都不满足
+9. 如果 "tail_type" 是 TIME 或 QUANTITY，请尽量补充：
+   - "normalized_value": 便于计算/比较的标准化值。TIME 优先写年份或 ISO 日期字符串；QUANTITY 优先写纯数字
+   - "unit": TIME 可写 year/date；QUANTITY 写 $, people, km2, kg, percent 等。如果无法可靠判断，可填空字符串
+10. 每个三元组请补充 "provenance"，只能从以下枚举中选择一个：
+   - text_exact
+   - text_rewrite
+   - image_resolved
+   - cross_entity
 
 ## 示例
 假设搜索 Billy Elliot 的结果提到"Billy Elliot premiered at the Imperial Theatre, 249 West 45th Street"，应提取两条三元组：
@@ -145,6 +155,9 @@ TRIPLE_EXTRACTION_PROMPT = """\
             "relation": "关系类型（如 located_at, founded_by, performed_at, headquartered_in 等）",
             "tail": "尾实体名",
             "tail_type": "TIME/QUANTITY/LOCATION/PERSON/ORG/OTHER 之一",
+            "normalized_value": "可选；TIME/QUANTITY 时尽量填写，如 1990 / 2024-01-01 / 500000000",
+            "unit": "可选；TIME/QUANTITY 时尽量填写，如 year / date / $ / people / km2",
+            "provenance": "text_exact/text_rewrite/image_resolved/cross_entity 之一",
             "fact": "一句话描述这个事实",
             "source_snippet": "搜索结果中的佐证原文片段"
         }}
@@ -260,6 +273,8 @@ CROSS_ENTITY_TRIPLE_PROMPT = """\
 6. head 和 tail 不能是同一个实体
 7. 每个三元组必须包含字段 "tail_type"，并且只能从以下枚举中选择一个值：
    ["TIME", "QUANTITY", "LOCATION", "PERSON", "ORG", "OTHER"]
+8. 如果 tail_type 是 TIME 或 QUANTITY，也尽量补充 "normalized_value" 和 "unit"
+9. provenance 固定填写 "cross_entity"
 
 请输出严格的JSON格式（不要加 markdown 代码块标记）：
 {{{{
@@ -269,6 +284,9 @@ CROSS_ENTITY_TRIPLE_PROMPT = """\
             "relation": "关系类型",
             "tail": "尾实体名",
             "tail_type": "TIME/QUANTITY/LOCATION/PERSON/ORG/OTHER 之一",
+            "normalized_value": "可选；TIME/QUANTITY 时尽量填写",
+            "unit": "可选；TIME/QUANTITY 时尽量填写",
+            "provenance": "cross_entity",
             "fact": "一句话描述这个事实",
             "source_snippet": "搜索结果中的佐证原文片段"
         }}}}
@@ -281,6 +299,7 @@ CROSS_ENTITY_TRIPLE_PROMPT = """\
 # ============================================================
 
 _TAIL_TYPE_ENUM = {"TIME", "QUANTITY", "LOCATION", "PERSON", "ORG", "OTHER"}
+_PROVENANCE_ENUM = {"text_exact", "text_rewrite", "image_resolved", "cross_entity"}
 
 
 def _normalize_tail_type(value) -> str:
@@ -288,6 +307,39 @@ def _normalize_tail_type(value) -> str:
         return "OTHER"
     normalized = value.strip().upper()
     return normalized if normalized in _TAIL_TYPE_ENUM else "OTHER"
+
+
+def _normalize_unit(value) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+def _normalize_scalar_value(value):
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return ""
+        try:
+            if re.fullmatch(r"-?\d+", text):
+                return int(text)
+            if re.fullmatch(r"-?\d+\.\d+", text):
+                return float(text)
+        except ValueError:
+            pass
+        return text
+    return str(value)
+
+
+def _normalize_provenance(value, default: str = "text_rewrite") -> str:
+    if not isinstance(value, str):
+        return default
+    normalized = value.strip().lower()
+    return normalized if normalized in _PROVENANCE_ENUM else default
 
 
 def _sanitize_triples(triples: list[dict]) -> list[dict]:
@@ -298,8 +350,41 @@ def _sanitize_triples(triples: list[dict]) -> list[dict]:
             continue
         item = dict(t)
         item["tail_type"] = _normalize_tail_type(item.get("tail_type"))
+        item["normalized_value"] = _normalize_scalar_value(item.get("normalized_value"))
+        item["unit"] = _normalize_unit(item.get("unit"))
+        item["provenance"] = _normalize_provenance(item.get("provenance"), default="text_rewrite")
+        item.pop("relation_family", None)
         normalized.append(item)
     return normalized
+
+
+def _entity_type_alias(entity: dict) -> str:
+    etype = str(entity.get("type", "")).strip().lower()
+    return {
+        "brand": "brand",
+        "person": "person",
+        "landmark": "landmark",
+        "product": "product",
+        "text": "title",
+    }.get(etype, "")
+
+
+def _exact_name_queries_for_entity(entity: dict) -> list[dict]:
+    name = str(entity.get("name", "")).strip()
+    if not name:
+        return []
+    queries = [{"query": name, "origin": "text_exact", "purpose": "实体精确名基线检索"}]
+    alias = _entity_type_alias(entity)
+    if alias:
+        queries.append({"query": f"{name} {alias}", "origin": "text_exact", "purpose": "实体精确名 + 类型别名检索"})
+    return queries
+
+
+def _exact_name_queries_for_tail(tail_name: str) -> list[dict]:
+    tail_name = str(tail_name or "").strip()
+    if not tail_name:
+        return []
+    return [{"query": tail_name, "origin": "text_exact", "purpose": "扩展实体精确名基线检索"}]
 
 
 # ============================================================
@@ -614,10 +699,30 @@ def extract_entities_vlm(img_path: str, img_id: str | None = None) -> dict:
             continue
 
         eid = f"E{idx}"
-        crop_path = os.path.join(crop_dir, f"{eid}.jpg")
-        rgb_image.crop((ix1, iy1, ix2, iy2)).save(
-            crop_path, format="JPEG", quality=ENTITY_CROP_QUALITY
-        )
+
+        # 三档搜索视图：tight / pad20 / context
+        search_views = {}
+        # tight: 原 bbox 紧裁
+        tight_crop = rgb_image.crop((ix1, iy1, ix2, iy2))
+        tight_path = os.path.join(crop_dir, f"{eid}.jpg")
+        tight_crop.save(tight_path, format="JPEG", quality=ENTITY_CROP_QUALITY)
+        search_views["tight"] = tight_path
+
+        # pad20: 四周扩 20%
+        pw = int((ix2 - ix1) * 0.2)
+        ph = int((iy2 - iy1) * 0.2)
+        pad_crop = rgb_image.crop((max(0, ix1-pw), max(0, iy1-ph), min(width, ix2+pw), min(height, iy2+ph)))
+        pad_path = os.path.join(crop_dir, f"{eid}_pad20.jpg")
+        pad_crop.save(pad_path, format="JPEG", quality=ENTITY_CROP_QUALITY)
+        search_views["pad20"] = pad_path
+
+        # context: 以实体为中心，bbox 面积约 4 倍
+        cx, cy = (ix1 + ix2) // 2, (iy1 + iy2) // 2
+        cw, ch = (ix2 - ix1) * 2, (iy2 - iy1) * 2
+        ctx_crop = rgb_image.crop((max(0, cx-cw), max(0, cy-ch), min(width, cx+cw), min(height, cy+ch)))
+        ctx_path = os.path.join(crop_dir, f"{eid}_context.jpg")
+        ctx_crop.save(ctx_path, format="JPEG", quality=ENTITY_CROP_QUALITY)
+        search_views["context"] = ctx_path
 
         pixel_bbox = [ix1, iy1, ix2, iy2]
         entities.append({
@@ -629,7 +734,8 @@ def extract_entities_vlm(img_path: str, img_id: str | None = None) -> dict:
             "location_in_image": _bbox_to_location(ix1, iy1, ix2, iy2, width, height),
             "confidence": 0.9,
             "confidence_level": "high",
-            "crop_path": crop_path,
+            "crop_path": tight_path,  # 向后兼容
+            "search_views": search_views,
             "source": "vlm_only",
         })
         idx += 1
@@ -701,7 +807,7 @@ def visit_url(url: str, max_chars: int = 3000) -> dict:
         headers = {"Accept": "text/plain"}
         if JINA_API_KEY:
             headers["Authorization"] = f"Bearer {JINA_API_KEY}"
-        resp = _http.get(f"{JINA_READER_URL}{url}", headers=headers)
+        resp = _jina_http.get(f"{JINA_READER_URL}{url}", headers=headers)
         if resp.status_code != 200:
             return {"url": url, "error": f"HTTP {resp.status_code}", "content": ""}
         return {"url": url, "content": resp.text[:max_chars]}
@@ -741,6 +847,139 @@ def _deep_read_top_urls(search_result: dict, max_urls: int = 2, max_chars: int =
 
 
 # ============================================================
+# image_search：Serper 图片搜索
+# ============================================================
+
+def image_text_search(query: str, max_results: int = 5) -> dict:
+    """文字搜图：用实体名搜图片结果，验证识别 + 找 alias。"""
+    if not SERPER_KEY:
+        return {"query": query, "error": "未配置 SERPER_KEY", "results": []}
+    try:
+        resp = _http.post(
+            "https://google.serper.dev/images",
+            headers={"X-API-KEY": SERPER_KEY, "Content-Type": "application/json"},
+            json={"q": query, "num": max_results},
+        )
+        data = resp.json()
+        results = []
+        for r in data.get("images", [])[:max_results]:
+            results.append({
+                "title": r.get("title", ""),
+                "image_url": r.get("imageUrl", ""),
+                "source_url": r.get("link", ""),
+                "source_domain": r.get("source", ""),
+            })
+        return {"query": query, "results": results}
+    except Exception as e:
+        return {"query": query, "error": str(e), "results": []}
+
+
+# ============================================================
+# 实体 resolution：用 image_search 验证识别 + 增加实体信息
+# ============================================================
+
+def _resolve_entities(entities: list, img_id: str) -> list:
+    """对实体做 resolution：image_search(text) 验证名称 + 增加上下文信息。
+
+    image_search 的两个作用：
+    1. 验证 VLM 给的名字是否靠谱（图片标题和来源页能确认身份）
+    2. 增加实体信息：来源页 URL 可以用 visit 深读，获取更多事实
+    """
+    img_tasks = []
+    for e in entities:
+        name = e.get("name", "").strip()
+        if name and len(name) >= 2:
+            img_tasks.append((e, name))
+
+    # 并行 image_search(text)
+    img_results = {}
+    if img_tasks:
+        def _do_img(task):
+            entity, query = task
+            return entity.get("id"), image_text_search(query, max_results=5)
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for eid, result in pool.map(_do_img, img_tasks):
+                if result.get("results"):
+                    img_results[eid] = result
+
+    # 并行 visit image_search 来源页，获取更多实体信息
+    visit_tasks = []
+    for eid, result in img_results.items():
+        for r in result.get("results", [])[:2]:  # top-2 来源页
+            source_url = r.get("source_url", "")
+            if source_url and "wikipedia" not in source_url.lower():
+                # 优先读非 wiki 的来源页（wiki 靠 web_search 就能覆盖）
+                visit_tasks.append((eid, source_url, r.get("title", "")))
+            elif source_url:
+                visit_tasks.append((eid, source_url, r.get("title", "")))
+            if len(visit_tasks) >= 20:  # 控制总量
+                break
+
+    visit_results: dict[str, list] = {}
+    if visit_tasks:
+        def _do_visit(task):
+            eid, url, title = task
+            content = visit_url(url, max_chars=2000)
+            return eid, {"url": url, "title": title, "content": content.get("content", "")}
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for eid, result in pool.map(_do_visit, visit_tasks):
+                if result.get("content"):
+                    visit_results.setdefault(eid, []).append(result)
+
+    # 合并 resolution 信息
+    for e in entities:
+        eid = e.get("id", "")
+        resolution = {
+            "image_search_titles": [],
+            "image_search_sources": [],
+            "visited_pages": [],
+        }
+
+        if eid in img_results:
+            for r in img_results[eid].get("results", [])[:5]:
+                if r.get("title"):
+                    resolution["image_search_titles"].append(r["title"])
+                if r.get("source_url"):
+                    resolution["image_search_sources"].append({
+                        "url": r["source_url"],
+                        "domain": r.get("source_domain", ""),
+                    })
+
+        if eid in visit_results:
+            resolution["visited_pages"] = [
+                {"url": v["url"], "title": v["title"], "content_preview": v["content"][:200]}
+                for v in visit_results[eid]
+            ]
+
+        e["resolution"] = resolution
+
+        # resolve_mode：这个实体需要怎么解析
+        etype = e.get("type", "")
+        if etype in ("text", "brand"):
+            e["resolve_mode"] = "ocr_likely"
+        elif etype in ("person", "landmark", "product"):
+            e["resolve_mode"] = "image_search_needed"
+        else:
+            e["resolve_mode"] = "ocr_likely"
+
+        # 如果 image_search 结果和 VLM 名称差异大，提升为 image_search_needed
+        if resolution.get("image_search_titles"):
+            vlm_name = e.get("name", "").lower()
+            titles_text = " ".join(resolution["image_search_titles"]).lower()
+            if vlm_name and len(vlm_name) >= 3 and vlm_name not in titles_text:
+                e["resolve_mode"] = "image_search_needed"
+
+    n_img = len(img_results)
+    n_visit = sum(len(v) for v in visit_results.values())
+    n_ocr = sum(1 for e in entities if e.get("resolve_mode") == "ocr_likely")
+    n_isearch = sum(1 for e in entities if e.get("resolve_mode") == "image_search_needed")
+    logger.info(f"  [{img_id}] 实体 resolution: image_search={n_img} 实体, visit={n_visit} 页, "
+                f"resolve_mode: ocr={n_ocr} image_search={n_isearch}")
+
+    return entities
+
+
+# ============================================================
 # 检查是否存在 L3 链（length >= 3）
 # ============================================================
 
@@ -768,6 +1007,36 @@ def _has_l3_chains(triples: list, entities: list) -> bool:
                 if nxt not in visited:
                     stack.append((nxt, visited | {nxt}, depth + 1))
     return False
+
+
+def _graph_richness_ok(triples: list, entities: list) -> bool:
+    """图谱是否已经足够厚。满足任意 2 项即达标。"""
+    from collections import defaultdict
+    checks_passed = 0
+
+    if len(triples) >= 30:
+        checks_passed += 1
+
+    type_groups: dict[str, set] = defaultdict(set)
+    for t in triples:
+        tt = t.get("tail_type", "OTHER")
+        if tt in ("TIME", "QUANTITY"):
+            type_groups[tt].add(t.get("head", "").lower())
+    if sum(1 for heads in type_groups.values() if len(heads) >= 2) >= 2:
+        checks_passed += 1
+
+    bridge_count = sum(1 for t in triples if t.get("provenance") in ("cross_entity",) or t.get("source") == "cross_entity")
+    if bridge_count >= 3:
+        checks_passed += 1
+
+    all_ents = set()
+    for t in triples:
+        all_ents.add(t.get("head", "").lower())
+        all_ents.add(t.get("tail", "").lower())
+    if len(all_ents) >= 15:
+        checks_passed += 1
+
+    return checks_passed >= 2
 
 
 # ============================================================
@@ -825,24 +1094,31 @@ def _extend_search(
         if item.get("skip", False):
             logger.info(f"    [R{round_idx+1}] 跳过 \"{entity_name}\"")
             continue
+        seen_queries = set()
+        for q_item in _exact_name_queries_for_tail(entity_name):
+            query = q_item.get("query", "")
+            if query and query.lower() not in seen_queries:
+                ext_tasks.append((entity_name, query, q_item.get("origin", "text_exact")))
+                seen_queries.add(query.lower())
         query = item.get("query", "")
-        if query:
-            ext_tasks.append((entity_name, query))
+        if query and query.lower() not in seen_queries:
+            ext_tasks.append((entity_name, query, "text_rewrite"))
 
     round2_search_results = []
     with ThreadPoolExecutor(max_workers=6) as pool:
-        futures = {pool.submit(web_search, q, 5): (name, q) for name, q in ext_tasks}
+        futures = {pool.submit(web_search, q, 5): (name, q, origin) for name, q, origin in ext_tasks}
         for fut in as_completed(futures):
-            entity_name, query = futures[fut]
+            entity_name, query, origin = futures[fut]
             sr = fut.result()
             sr["purpose"] = f"第{round_idx}轮扩展搜索: {entity_name}"
+            sr["query_origin"] = origin
             round2_search_results.append({
                 "entity_id": f"R{round_idx+1}_{entity_name[:20]}",
                 "entity_name": entity_name,
                 "searches": [sr],
                 "round": round_idx + 1,
             })
-            logger.info(f"    [R{round_idx+1}] \"{entity_name}\" → \"{query}\" → {len(sr.get('results', []))} 条结果")
+            logger.info(f"    [R{round_idx+1}] \"{entity_name}\" → \"{query}\" [{origin}] → {len(sr.get('results', []))} 条结果")
 
     def _jina_ext(er):
         for s in er.get("searches", []):
@@ -856,7 +1132,7 @@ def _extend_search(
     for sr in round2_search_results:
         round2_text += f"\n### {sr['entity_name']} (第 {round_idx} 轮扩展)\n"
         for s in sr.get("searches", []):
-            round2_text += f"\n搜索词: \"{s['query']}\"\n"
+            round2_text += f"\n搜索词: \"{s['query']}\" (provenance: {s.get('query_origin', 'text_rewrite')})\n"
             for r in s.get("results", []):
                 if r.get("type") == "knowledge_graph":
                     round2_text += f"  [知识面板] {r['content']}\n"
@@ -1034,13 +1310,22 @@ def _find_cross_entity_relations(
     try:
         from itertools import combinations
 
-        # ── 枚举所有实体对 ──
+        # ── 枚举实体对（上限 20 对，优先高置信 + 有知识价值的实体）──
+        MAX_CROSS_PAIRS = 20
+        _SEARCHABLE_TYPES = {"brand", "product", "landmark", "person"}
+        # 优先选 searchable 类型的实体，按 confidence 降序
+        ranked = sorted(entities, key=lambda e: (
+            1 if e.get("type", "") in _SEARCHABLE_TYPES else 0,
+            float(e.get("confidence", 0)),
+        ), reverse=True)
         all_pairs = []
-        for a, b in combinations(entities, 2):
+        for a, b in combinations(ranked, 2):
             a_name = a.get("name", "")
             b_name = b.get("name", "")
             if a_name and b_name:
                 all_pairs.append({"entity_a": a_name, "entity_b": b_name})
+            if len(all_pairs) >= MAX_CROSS_PAIRS:
+                break
 
         # ── LLM 为每对生成搜索计划 ──
         entities_summary = "\n".join(
@@ -1125,7 +1410,7 @@ def _find_cross_entity_relations(
                     logger.warning(f"  [{img_id}] 跨实体搜索失败 "
                                    f"({task['entity_a']}-{task['entity_b']}): {exc}")
                     continue
-                deep_reads = _deep_read_top_urls(sr, max_urls=5, max_chars=2000)
+                deep_reads = _deep_read_top_urls(sr, max_urls=2, max_chars=2000)
                 pair_search_results.append({
                     "entity_a": task["entity_a"],
                     "entity_b": task["entity_b"],
@@ -1195,6 +1480,7 @@ def _find_cross_entity_relations(
             if key[0] and key[2] and key[0] != key[2] and key not in seen:
                 seen.add(key)
                 t["source"] = "cross_entity"
+                t["provenance"] = "cross_entity"
                 cross_triples.append(t)
 
         logger.info(
@@ -1233,48 +1519,76 @@ def enrich_image(img_path: str) -> dict | None:
         logger.warning(f"  [{img_id}] 实体数太少 ({len(entities)})，跳过")
         return None
 
-    # ---- 2b-1 前. 先选出高置信度实体（最多5个），后续所有步骤均基于此子集 ----
-    high_conf = []
+    # ---- 2b-0. 实体池分层：core_anchors（Step3 出题用）+ expansion_seeds（Step2 扩图用）----
+    _GENERIC_NAMES = {"car", "person", "building", "tree", "sign", "door", "window", "wall", "floor", "sky"}
     seen_entity_names = set()
-    entities_for_plan = sorted(
-        entities,
-        key=lambda x: float(x.get("confidence", 0.0)) if isinstance(x.get("confidence"), (int, float)) else 0.0,
-        reverse=True,
-    )
-    for e in entities_for_plan:
+
+    # core_anchors: confidence >= 0.8，给 Step3 出题优先级用
+    core_anchors = []
+    for e in sorted(entities, key=lambda x: float(x.get("confidence", 0.0)) if isinstance(x.get("confidence"), (int, float)) else 0.0, reverse=True):
         name_key = str(e.get("name", "")).strip().lower()
         if not name_key or name_key in seen_entity_names:
             continue
         conf = e.get("confidence")
-        if isinstance(conf, (int, float)) and conf >= 0.45:
-            high_conf.append(e)
-        elif str(e.get("confidence_level", "")).lower() in ("high", "medium"):
-            high_conf.append(e)
-        if high_conf and high_conf[-1] is e:
+        if (isinstance(conf, (int, float)) and conf >= 0.8) or str(e.get("confidence_level", "")).lower() == "high":
+            core_anchors.append(e)
             seen_entity_names.add(name_key)
-        if len(high_conf) >= 5:
-            break
-    if not high_conf:
-        high_conf = entities[:5]
 
-    entities_json_str = json.dumps(high_conf, ensure_ascii=False, indent=2)
+    # expansion_seeds: 所有 searchable 实体，不限数量（排除太泛的 object）
+    expansion_seeds = []
+    seen_exp = set()
+    for e in entities:
+        name_key = str(e.get("name", "")).strip().lower()
+        if not name_key or name_key in seen_exp:
+            continue
+        if e.get("type") == "object" and name_key in _GENERIC_NAMES:
+            continue
+        expansion_seeds.append(e)
+        seen_exp.add(name_key)
+
+    if not core_anchors:
+        core_anchors = entities[:5]
+    if not expansion_seeds:
+        expansion_seeds = entities[:5]
+
+    # high_conf 保持向后兼容（Step3 的 HeteroSolveGraph 读这个字段）
+    high_conf = core_anchors
+
     image_desc = entity_data.get("image_description", "")
+    logger.info(f"  [{img_id}] 实体池: core_anchors={len(core_anchors)}, expansion_seeds={len(expansion_seeds)}")
 
-    # ---- 2b-0. 跨实体关联发现（只在被搜索的 high_conf 实体之间查找）----
-    logger.info(f"  [{img_id}] 跨实体关联发现（{len(high_conf)} 个实体）...")
-    cross_triples = _find_cross_entity_relations(img_path, high_conf, img_id, image_desc)
+    # ---- 2a-2. 实体 resolution：image_search 验证 + visit 增加信息 ----
+    logger.info(f"  [{img_id}] 实体 resolution（image_search + visit）...")
+    entities = _resolve_entities(entities, img_id)
+
+    # ---- 2b-0. 跨实体关联发现（用 expansion_seeds，不再限 top-5）----
+    logger.info(f"  [{img_id}] 跨实体关联发现（{len(expansion_seeds)} 个实体）...")
+    cross_triples = _find_cross_entity_relations(img_path, expansion_seeds, img_id, image_desc)
     logger.info(f"  [{img_id}] 跨实体桥接三元组: {len(cross_triples)} 个")
 
-    logger.info(f"  [{img_id}] 为 {len(high_conf)} 个实体生成搜索计划...")
-    search_plan_data = call_vlm_json(
-        SEARCH_PLAN_PROMPT.format(image_description=image_desc, entities_json=entities_json_str),
-        "请为每个实体生成搜索计划。",
-        max_tokens=2048,
-        temperature=0.3,
-    )
+    # ---- 2b-1. 确定性搜索计划（不调 LLM，纯代码生成）----
+    searchable = []
+    for e in expansion_seeds:
+        name = str(e.get("name", "")).strip()
+        etype = e.get("type", "")
+        if not name:
+            continue
+        if etype == "object" and len(name) <= 3:
+            continue
+        queries = [{"query": name, "purpose": "精确名搜索", "origin": "text_exact"}]
+        alias_map = {"brand": "brand company", "product": "product", "landmark": "landmark building", "person": "person biography"}
+        alias = alias_map.get(etype, "")
+        if alias:
+            queries.append({"query": f"{name} {alias}", "purpose": "类型限定搜索", "origin": "text_exact"})
+        searchable.append({"entity_id": e.get("id", ""), "entity_name": name, "skip": False, "queries": queries})
+    skipped = [e for e in expansion_seeds if str(e.get("name", "")).strip() == ""]
+    logger.info(f"  [{img_id}] 确定性搜索计划: {len(searchable)} 个实体需搜索, {len(skipped)} 个跳过")
 
-    if search_plan_data is None:
-        logger.warning(f"  [{img_id}] 搜索计划生成失败，跳过知识扩展")
+    search_plan_data = {"search_plans": searchable}
+    plans = searchable
+
+    if not plans:
+        logger.warning(f"  [{img_id}] 无可搜索实体，跳过知识扩展")
         result = {
             "img_id": img_id, "img_path": img_path,
             "image_description": image_desc,
@@ -1285,36 +1599,40 @@ def enrich_image(img_path: str) -> dict | None:
         save_checkpoint(2, img_id, result)
         return result
 
-    plans = search_plan_data.get("search_plans", [])
-    searchable = [p for p in plans if not p.get("skip", False)]
-    skipped = [p for p in plans if p.get("skip", False)]
-    logger.info(f"  [{img_id}] 搜索计划: {len(searchable)} 个实体需搜索, {len(skipped)} 个跳过")
-
     # ---- 2b-2. 并行执行搜索 + Jina深读 ----
     logger.info(f"  [{img_id}] 并行执行搜索...")
 
     search_tasks = []
+    entity_lookup = {e.get("id", ""): e for e in expansion_seeds}
     for plan in searchable:
         eid = plan.get("entity_id", "")
         ename = plan.get("entity_name", "")
+        seen_queries = set()
+        for q_item in _exact_name_queries_for_entity(entity_lookup.get(eid, {"name": ename})):
+            query = q_item.get("query", "")
+            if query and query.lower() not in seen_queries:
+                search_tasks.append((eid, ename, query, q_item.get("purpose", ""), q_item.get("origin", "text_exact")))
+                seen_queries.add(query.lower())
         for q_item in plan.get("queries", []):
             query = q_item.get("query", "")
             purpose = q_item.get("purpose", "")
-            if query:
-                search_tasks.append((eid, ename, query, purpose))
+            if query and query.lower() not in seen_queries:
+                search_tasks.append((eid, ename, query, purpose, "text_rewrite"))
+                seen_queries.add(query.lower())
 
     search_results_map = {}
     with ThreadPoolExecutor(max_workers=6) as pool:
         futures = {}
-        for eid, ename, query, purpose in search_tasks:
+        for eid, ename, query, purpose, origin in search_tasks:
             fut = pool.submit(web_search, query, 5)
-            futures[fut] = (eid, ename, query, purpose)
+            futures[fut] = (eid, ename, query, purpose, origin)
         for fut in as_completed(futures):
-            eid, ename, query, purpose = futures[fut]
+            eid, ename, query, purpose, origin = futures[fut]
             sr = fut.result()
             sr["purpose"] = purpose
+            sr["query_origin"] = origin
             search_results_map[(eid, query)] = sr
-            logger.info(f"    [{eid}] \"{query}\" → {len(sr.get('results', []))} 条结果")
+            logger.info(f"    [{eid}] \"{query}\" [{origin}] → {len(sr.get('results', []))} 条结果")
 
     all_search_results = []
     for plan in searchable:
@@ -1343,16 +1661,23 @@ def enrich_image(img_path: str) -> dict | None:
             all_search_results[idx_i]["searches"][idx_j]["deep_reads"] = deep
 
     # ---- 2b-3. 从搜索结果中提取事实三元组 ----
-    entities_summary = "\n".join(
-        f"- {e['id']}: {e['name']} (类型={e.get('type', '?')}, 位置={e.get('location_in_image', '?')})"
-        for e in high_conf
-    )
+    entities_summary_lines = []
+    for e in expansion_seeds:
+        line = f"- {e['id']}: {e['name']} (类型={e.get('type', '?')}, 位置={e.get('location_in_image', '?')})"
+        res = e.get("resolution", {})
+        if res.get("image_search_titles"):
+            line += f" [图搜验证: {', '.join(res['image_search_titles'][:2])}]"
+        if res.get("visited_pages"):
+            page_info = "; ".join(p["content_preview"][:100] for p in res["visited_pages"][:1])
+            line += f" [来源页: {page_info}]"
+        entities_summary_lines.append(line)
+    entities_summary = "\n".join(entities_summary_lines)
 
     search_results_text = ""
     for sr in all_search_results:
         search_results_text += f"\n### {sr['entity_name']} ({sr['entity_id']})\n"
         for s in sr.get("searches", []):
-            search_results_text += f"\n搜索词: \"{s['query']}\" (目的: {s.get('purpose', '')})\n"
+            search_results_text += f"\n搜索词: \"{s['query']}\" (目的: {s.get('purpose', '')}, provenance: {s.get('query_origin', 'text_rewrite')})\n"
             for r in s.get("results", []):
                 if r.get("type") == "knowledge_graph":
                     search_results_text += f"  [知识面板] {r['content']}\n"
@@ -1376,7 +1701,28 @@ def enrich_image(img_path: str) -> dict | None:
         triple_data = {"triples": []}
 
     triples = _sanitize_triples(triple_data.get("triples", []))
-    logger.info(f"  [{img_id}] 第一轮提取到 {len(triples)} 个三元组")
+
+    # ---- retrieval_mode 标记：snippet_only vs page_only ----
+    deep_read_corpus = ""
+    snippet_corpus = ""
+    for sr in all_search_results:
+        for s in sr.get("searches", []):
+            for r in s.get("results", []):
+                snippet_corpus += r.get("snippet", "") + r.get("content", "") + " "
+            for d in s.get("deep_reads", []):
+                deep_read_corpus += d.get("content", "") + " "
+
+    for t in triples:
+        src = (t.get("source_snippet") or "").strip()
+        if not src:
+            t["retrieval_mode"] = "snippet_only"
+        elif len(src) >= 20 and src[:20] in deep_read_corpus and src[:20] not in snippet_corpus:
+            t["retrieval_mode"] = "page_only"
+        else:
+            t["retrieval_mode"] = "snippet_only"
+
+    n_page = sum(1 for t in triples if t.get("retrieval_mode") == "page_only")
+    logger.info(f"  [{img_id}] 第一轮提取到 {len(triples)} 个三元组 (page_only={n_page})")
 
     # ---- 2b-3.5. 合并跨实体桥接三元组 ----
     if cross_triples:
@@ -1393,13 +1739,13 @@ def enrich_image(img_path: str) -> dict | None:
                 cross_added += 1
         logger.info(f"  [{img_id}] 合并跨实体三元组: 新增 {cross_added} 个, 共 {len(triples)} 个")
 
-    # ---- 2b-4. 多轮扩展搜索 ----
-    MAX_EXTEND_ROUNDS = 3
+    # ---- 2b-4. 多轮扩展搜索（graph richness 停止条件）----
+    MAX_EXTEND_ROUNDS = 4
     for round_idx in range(1, MAX_EXTEND_ROUNDS + 1):
-        if _has_l3_chains(triples, entities):
-            logger.info(f"  [{img_id}] 第 {round_idx} 轮前检测到 L3 链，停止扩展")
+        if _graph_richness_ok(triples, entities):
+            logger.info(f"  [{img_id}] 第 {round_idx} 轮前图谱已达标，停止扩展")
             break
-        logger.info(f"  [{img_id}] 第 {round_idx} 轮扩展搜索（尚无 L3 链）...")
+        logger.info(f"  [{img_id}] 第 {round_idx} 轮扩展搜索（图谱尚未达标）...")
         triples, extra_search_results = _extend_search(
             triples, entities, img_id, all_search_results, round_idx
         )
@@ -1432,6 +1778,9 @@ def enrich_image(img_path: str) -> dict | None:
         "image_description": image_desc,
         "domain": entity_data.get("domain", "other"),
         "entities": entities,
+        "high_conf": core_anchors,  # 向后兼容
+        "core_anchors": core_anchors,
+        "expansion_seeds": expansion_seeds,
         "search_plans": plans,
         "search_results": all_search_results,
         "triples": triples,

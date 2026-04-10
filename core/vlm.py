@@ -3,7 +3,7 @@
 import json
 import os
 import time
-from typing import Optional
+from typing import Optional, Any
 
 import httpx
 from openai import OpenAI
@@ -44,14 +44,16 @@ def call_vlm(
 
     for attempt in range(1, max_retries + 1):
         try:
-            resp = client.chat.completions.create(
+            kwargs = dict(
                 model=MODEL_NAME,
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 timeout=VLM_TIMEOUT,
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             )
+            if "thinking" in MODEL_NAME.lower():
+                kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+            resp = client.chat.completions.create(**kwargs)
             time.sleep(RATE_LIMIT_DELAY)
             return (resp.choices[0].message.content or "").strip()
         except Exception as e:
@@ -113,3 +115,55 @@ def call_vlm_json(
         if data is not None:
             return data
     return None
+
+
+def call_vlm_json_with_meta(
+    system_prompt: str,
+    user_content: str | list,
+    image_b64: str | None = None,
+    max_tokens: int = 4096,
+    temperature: float = 0.5,
+    max_attempts: int = 3,
+) -> tuple[Optional[dict], dict[str, Any]]:
+    """调用 VLM 并解析 JSON，返回 (data, meta)，meta 含失败原因轨迹。"""
+    attempts: list[dict[str, Any]] = []
+    last_error = ""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            raw = call_vlm(system_prompt, user_content, image_b64, max_tokens, temperature)
+        except RuntimeError as e:
+            last_error = str(e)
+            attempts.append({
+                "attempt": attempt,
+                "status": "call_error",
+                "error": last_error,
+            })
+            continue
+        if not raw:
+            attempts.append({
+                "attempt": attempt,
+                "status": "empty_response",
+            })
+            continue
+        data = extract_json(raw)
+        if data is not None:
+            attempts.append({
+                "attempt": attempt,
+                "status": "ok",
+            })
+            return data, {
+                "ok": True,
+                "attempts": attempts,
+                "last_error": "",
+            }
+        preview = raw[:240].replace("\n", " ")
+        attempts.append({
+            "attempt": attempt,
+            "status": "json_parse_failed",
+            "raw_preview": preview,
+        })
+    return None, {
+        "ok": False,
+        "attempts": attempts,
+        "last_error": last_error,
+    }
