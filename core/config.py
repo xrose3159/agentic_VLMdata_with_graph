@@ -16,7 +16,7 @@ BASE_URL   = os.environ.get("BASE_URL", "")
 # 外部工具 API
 # ============================================================
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
-SERPER_KEY     = os.environ.get("SERPER_KEY", "")
+SERPER_KEY     = os.environ.get("SERPER_KEY", "")  # web_search / image_search(text) / Google Lens
 E2B_API_KEY    = os.environ.get("E2B_API_KEY", "")
 JINA_API_KEY   = os.environ.get("JINA_API_KEY", "")
 JINA_READER_URL = "https://r.jina.ai/"

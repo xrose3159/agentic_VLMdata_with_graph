@@ -157,34 +157,17 @@ def run_step2(img_path: str) -> dict | None:
 # ============================================================
 
 def run_step3(entity_file: str) -> dict | None:
-    from step3_generate import generate_questions, find_motifs, motif_to_skeleton
+    from step3_generate import generate_questions
 
-    step_header(3, "分层问题生成（L1 / L2 / L3）")
+    step_header(3, "分层问题生成（L1 / L2 / L3）— trajectory_runtime")
 
     with open(entity_file, encoding="utf-8") as f:
         entity_data = json.load(f)
     entities = entity_data.get("entities", [])
     triples  = entity_data.get("triples", [])
+    info(f"三元组: {len(triples)}  实体: {len(entities)}")
 
-    section("知识图谱建图与 Motif 探测")
-    motifs, nodes = find_motifs(triples, entities)
-    in_image_nodes = [n for n in nodes.values() if n["in_image"]]
-    info(f"节点总数: {len(nodes)}  图中实体节点: {len(in_image_nodes)}")
-    info(f"Motif 数量: Bridge={len(motifs['bridge'])}  MultiHop={len(motifs['multihop'])}  Comparative={len(motifs['comparative'])}")
-
-    for mtype, label in [("bridge", "Bridge L2"), ("multihop", "MultiHop L3"), ("comparative", "Comparative L2")]:
-        mlist = motifs.get(mtype, [])
-        if not mlist:
-            continue
-        print(f"\n  [{label} Motif]")
-        for m in mlist[:5]:
-            skeleton = motif_to_skeleton(m, nodes)
-            anchors = skeleton.get("visual_anchors", {})
-            target  = skeleton.get("target_answer", "?")
-            anchor_str = "  +  ".join(f"{k}={v}" for k, v in anchors.items())
-            print(f"    {anchor_str}  →  答案: {target}")
-
-    section("LLM 润色生成自然语言问题")
+    section("HeteroSolveGraph + random walk + 后验 closure 枚举")
     t0 = time.time()
     result = generate_questions(entity_file)
     elapsed = time.time() - t0

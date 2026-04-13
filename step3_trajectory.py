@@ -40,6 +40,50 @@ from step3_graphenv_runtime import (
 from core.vlm import call_vlm_json
 
 
+def _canon(s: str) -> str:
+    """canonical form of entity/value string: strip, lowercase, collapse whitespace."""
+    if not s:
+        return ""
+    return re.sub(r"\s+", " ", s.strip()).lower()
+
+
+def _set_merge_relations_compatible(rel_a: str, rel_b: str, tail_type: str) -> bool:
+    """set_merge 的两个 retrieve 关系是否语义兼容。
+
+    允许：
+    - 完全相同的 relation（两人都 born_in 某城市）
+    - 同一语义 bucket（headquartered_in 和 located_in 都是"城市"类）
+    """
+    rel_a = (rel_a or "").strip().lower()
+    rel_b = (rel_b or "").strip().lower()
+    if not rel_a or not rel_b:
+        return False
+    if rel_a == rel_b:
+        return True
+
+    # 同 bucket 的 relation 语义组
+    buckets = [
+        # "出生/来源" 城市
+        {"born_in", "birthplace", "from", "hometown", "origin", "birth_city"},
+        # "总部/位置" 城市
+        {"headquartered_in", "based_in", "located_in", "hq", "headquarters"},
+        # "所属团队/组织"
+        {"plays_for", "plays for", "played_for", "played for", "member_of", "signed_with"},
+        # "所属联赛/联盟"
+        {"competes_in", "plays_in", "part_of", "league"},
+        # "合作/赞助"
+        {"sponsored_by", "partner_of", "endorses", "endorsed_by"},
+        # "职业/角色"
+        {"occupation", "profession", "role", "position"},
+        # "国籍"
+        {"nationality", "citizen_of", "country"},
+    ]
+    for bucket in buckets:
+        if rel_a in bucket and rel_b in bucket:
+            return True
+    return False
+
+
 # ============================================================
 # S1. HeteroSolveGraph
 # ============================================================
@@ -63,9 +107,17 @@ class HeteroSolveGraph:
         self.G = nx.DiGraph()
         self.image_description = entity_json.get("image_description", "")
         self.domain = entity_json.get("domain", "other")
+        self.local_artifacts = entity_json.get("local_artifacts", {})
         self._region_data: dict[str, dict] = {}
         self._entity_for_region: dict[str, str] = {}
         self._build(entity_json)
+        # 预缓存 canonical name → entity_key 查表，供 multi_hop 和 walker 复用
+        self._name_to_entity_canon_map: dict[str, str] = {}
+        for n, nd in self.G.nodes(data=True):
+            if nd.get("ntype") == NTYPE_ENTITY:
+                canon = _canon(nd.get("name", "") or n.removeprefix("entity:"))
+                if canon and canon not in self._name_to_entity_canon_map:
+                    self._name_to_entity_canon_map[canon] = n
 
     # ---- construction ----
 
@@ -116,6 +168,15 @@ class HeteroSolveGraph:
             self._entity_for_region[region_key] = entity_key
 
         # fact nodes from triples
+        # 桥接提升：对于 head 不在 in-image 实体里的 triple，创建一个合成 entity 节点，
+        # 这样 multi_hop 可以把它当作中间跳。合成节点没有 region，不会被 walker spawn 选中。
+        # 先尝试用 canonical 形式折叠到已有实体，避免 "Nuggets" vs "Denver Nuggets" 这种别名重复。
+        canon_to_existing_entity: dict[str, str] = {}
+        for ek, nd in list(self.G.nodes(data=True)):
+            if nd.get("ntype") == NTYPE_ENTITY:
+                ename = nd.get("name", "") or ek.removeprefix("entity:")
+                canon_to_existing_entity[_canon(ename)] = ek
+
         for t in triples:
             head = (t.get("head") or "").strip()
             tail = (t.get("tail") or "").strip()
@@ -125,8 +186,24 @@ class HeteroSolveGraph:
 
             head_key = f"entity:{head.lower()}"
             if not self.G.has_node(head_key):
-                # head 不在图中实体里，跳过（只保留从图中实体出发的 triple）
-                continue
+                # 先尝试通过 canonical 形式折叠到已有 in-image 实体
+                canon_head = _canon(head)
+                matched = canon_to_existing_entity.get(canon_head)
+                if matched:
+                    head_key = matched
+                else:
+                    # 创建合成桥接实体（不是 in-image，没有 region）
+                    head_key = f"entity:{canon_head}" if canon_head else f"entity:{head.lower()}"
+                    if not self.G.has_node(head_key):
+                        self.G.add_node(
+                            head_key,
+                            ntype=NTYPE_ENTITY,
+                            name=head,
+                            synthetic=True,
+                            in_image=False,
+                            confidence=0.0,
+                        )
+                        canon_to_existing_entity[canon_head] = head_key
 
             tail_type = _normalize_tail_type(t.get("tail_type"))
             fact_key = f"fact:{head.lower()}:{_relation_slug(relation)}:{tail.lower()}"
@@ -448,11 +525,28 @@ def _score_expand(move: Move, state: WalkState, graph: HeteroSolveGraph, diff: D
         # compute affordance: 如果这个 fact 的 tail_type 是 TIME/QUANTITY 且子图里已有同类值
         if tt in ("TIME", "QUANTITY"):
             existing = state.fact_values_by_type(tt)
-            # 不同 entity 的同类值 = compare 可能
             src_entity = move.src
             other_entities_with_same_type = [ek for ek in existing if ek != src_entity]
             if other_entities_with_same_type:
                 score += diff.w_compute_affordance * 1.5
+
+        # bridge affordance: 这条边的 tail value 是图里另一个 entity 的名字 → multi_hop 桥接点
+        canon_val = _canon(val)
+        if canon_val and canon_val in getattr(graph, "_name_to_entity_canon_map", {}):
+            score += 1.5 if diff.name == "hard" else 0.3
+
+        # page_only 边奖励（HARD 难度下）— evidenced 比 semantic 更值钱
+        if diff.name == "hard":
+            rm = move.edge_data.get("retrieval_mode", "")
+            if rm == "page_only_evidenced" or rm == "page_only":
+                score += 1.5  # 有真证据
+            elif rm == "page_only_semantic":
+                score += 0.7  # 语义推的，值钱但不如 evidenced
+
+        # 合成源节点折扣（避免 walker 被合成实体的大扇出淹没）
+        src_node_data = graph.G.nodes.get(move.src, {})
+        if src_node_data.get("synthetic"):
+            score *= 0.5
 
     # resolve 边带来新实体
     elif etype == ETYPE_RESOLVE:
@@ -475,6 +569,12 @@ def _score_spawn(move: Move, state: WalkState, graph: HeteroSolveGraph, diff: Di
     # 如果需要更多锚点来满足 budget
     if len(state.used_anchors) < diff.min_anchors:
         score += 3.0
+    # HARD 难度下，偏好 resolve_mode=image_search_needed 的锚点（工具链至少 +1 image_search）
+    if diff.name == "hard":
+        for _, _, d in graph.G.out_edges(move.region_key, data=True):
+            if d.get("etype") == ETYPE_RESOLVE and d.get("resolve_mode") == "image_search_needed":
+                score += 1.0
+                break
     return score
 
 
@@ -498,25 +598,39 @@ def _score_stop(state: WalkState, graph: HeteroSolveGraph, diff: DifficultyProfi
         if not has_compute:
             score -= 5.0
 
-    # hard 难度下，检查工具多样性 budget
+    # hard 难度下，硬预算检查（不是软偏好）
     if diff.name == "hard":
-        # 检查是否有 image_search_needed 的 resolve 边在子图中
+        budget_deficit = 0
+
+        # 必须有 image_search_needed 的实体
         has_image_resolve = any(
             d.get("resolve_mode") == "image_search_needed"
             for _, _, d in state.subgraph.edges(data=True)
             if d.get("etype") == ETYPE_RESOLVE
         )
         if not has_image_resolve:
-            score -= 2.0  # 还没有需要 image_search 的实体
+            budget_deficit += 1
 
-        # 检查是否有 page_only 的 retrieve 边
+        # 必须有 page_only 的事实（evidenced 或 semantic 都算，walker 阶段宽松）
         has_page_only = any(
-            d.get("retrieval_mode") == "page_only"
+            d.get("retrieval_mode") in ("page_only_evidenced", "page_only_semantic", "page_only")
             for _, _, d in state.subgraph.edges(data=True)
             if d.get("etype") == ETYPE_RETRIEVE
         )
         if not has_page_only:
-            score -= 1.5  # 还没有需要 visit 的事实
+            budget_deficit += 1
+
+        # 必须有 ≥2 个独立分支（不同锚点的 resolve 链）
+        if len(state.used_anchors) < 2:
+            budget_deficit += 1
+
+        # 必须有 compute closure
+        has_compute = any(c.get("family") in ("compare", "rank", "set_merge", "compare_then_follow") for c in closures)
+        if not has_compute:
+            budget_deficit += 1
+
+        # budget_deficit 越大，STOP 越不应该
+        score -= budget_deficit * 3.0
 
     return score
 
@@ -659,64 +773,279 @@ def enumerate_closures(state: WalkState, graph: HeteroSolveGraph) -> list[dict]:
                 if len(top3) >= 3:
                     break
             if len(top3) >= 3:
-                closures.append({
-                    "family": "rank",
-                    "level": 3,
-                    "anchors": [rk for rk, _, _, _, _ in top3],
-                    "answer": "rank_winner",
-                    "answer_type": "OTHER",
-                    "branches": [
-                        {"region": rk, "entity": ek, "fact": fk, "value": val, "edge": d}
-                        for rk, ek, fk, val, d in top3
-                    ],
-                    "score": sum(d.get("askability", 0) for _, _, _, _, d in top3) + 2.0,
-                })
+                # 按 rank_type 真正计算 winner（argmin/argmax），不再用 rank_winner 占位
+                for rank_type in ("earliest", "latest") if tt == "TIME" else ("largest", "smallest"):
+                    try:
+                        sortable = [
+                            (float(d.get("normalized_value", "")), rk, ek, fk, val, d)
+                            for rk, ek, fk, val, d in top3
+                        ]
+                    except (ValueError, TypeError):
+                        continue
+                    if rank_type in ("earliest", "smallest"):
+                        sortable.sort(key=lambda x: x[0])
+                    else:
+                        sortable.sort(key=lambda x: x[0], reverse=True)
+                    winner_norm, winner_rk, winner_ek, winner_fk, winner_val, winner_d = sortable[0]
+                    # 验证 winner 唯一（否则这道题不可答）
+                    if len(sortable) >= 2 and sortable[0][0] == sortable[1][0]:
+                        continue  # tie，答案不唯一
+                    # 答案是 winner 对应的 entity name
+                    winner_name = graph.entity_name(winner_ek)
+                    if not winner_name:
+                        continue
+                    closures.append({
+                        "family": "rank",
+                        "level": 3,
+                        "anchors": [rk for rk, _, _, _, _ in top3],
+                        "answer": winner_name,                    # 真 winner 名字
+                        "answer_type": "OTHER",
+                        "rank_type": rank_type,                   # earliest/latest/largest/smallest
+                        "winner_entity": winner_ek,
+                        "winner_value": winner_val,
+                        "winner_fact": winner_fk,
+                        "branches": [
+                            {"region": rk, "entity": ek, "fact": fk, "value": val, "edge": d}
+                            for rk, ek, fk, val, d in top3
+                        ],
+                        "score": sum(d.get("askability", 0) for _, _, _, _, d in top3) + 2.0,
+                    })
 
-    # ---- 4) Set merge: 两个 entity 共享 fact target ----
+    # ---- 4) Set merge: 两个 entity 共享 fact 的 tail value ----
+    # 注意：fact_key 里嵌了 head，同一个 tail 在不同 head 下是不同 node
+    #       所以用 (normalized_tail_value, tail_type) 做匹配键
     entity_list = [(rk, region_to_entity[rk]) for rk in region_list if region_to_entity.get(rk)]
+    seen_merge_keys: set = set()
     for i in range(len(entity_list)):
         for j in range(i + 1, len(entity_list)):
             rA, eA = entity_list[i]
             rB, eB = entity_list[j]
             if eA == eB:
                 continue
-            targets_a = {}
-            for _, fk, d in state.subgraph.out_edges(eA, data=True):
-                if d.get("etype") == ETYPE_RETRIEVE:
-                    targets_a[fk] = d
-            for _, fk, d in state.subgraph.out_edges(eB, data=True):
-                if d.get("etype") == ETYPE_RETRIEVE and fk in targets_a:
-                    val = state.subgraph.nodes.get(fk, {}).get("value", "")
-                    tt = state.subgraph.nodes.get(fk, {}).get("tail_type", "OTHER")
-                    if val and val.lower() not in _BAD_ANSWERS:
-                        closures.append({
-                            "family": "set_merge",
-                            "level": 3,
-                            "anchors": [rA, rB],
-                            "answer": val,
-                            "answer_type": tt,
-                            "shared_fact": fk,
-                            "edge_a": targets_a[fk],
-                            "edge_b": d,
-                            "score": targets_a[fk].get("askability", 0) + d.get("askability", 0) + 1.0,
-                        })
+            # 收集 A 的所有 retrieve fact tail：{(norm_val, tt): (fk, d, rel)}
+            targets_a: dict = {}
+            for _, fk_a, da in state.subgraph.out_edges(eA, data=True):
+                if da.get("etype") != ETYPE_RETRIEVE:
+                    continue
+                val_a = state.subgraph.nodes.get(fk_a, {}).get("value", "") or ""
+                tt_a = state.subgraph.nodes.get(fk_a, {}).get("tail_type", "OTHER")
+                key = (val_a.strip().lower(), tt_a)
+                if key[0]:
+                    targets_a.setdefault(key, (fk_a, da))
+            # 遍历 B 的 retrieve fact tail，寻找匹配
+            for _, fk_b, db in state.subgraph.out_edges(eB, data=True):
+                if db.get("etype") != ETYPE_RETRIEVE:
+                    continue
+                val_b = state.subgraph.nodes.get(fk_b, {}).get("value", "") or ""
+                tt_b = state.subgraph.nodes.get(fk_b, {}).get("tail_type", "OTHER")
+                key = (val_b.strip().lower(), tt_b)
+                if not key[0] or key not in targets_a:
+                    continue
+                fk_a, da = targets_a[key]
+                val = val_b  # 两者 value 等价，取 B 的原始字符串
+                if val.lower() in _BAD_ANSWERS:
+                    continue
+                # set_merge 要求两条边的 relation 语义兼容
+                # （否则会产出 "born_in + exploring_expansion_to" 这种怪问题）
+                rel_a = da.get("relation", "")
+                rel_b = db.get("relation", "")
+                if not _set_merge_relations_compatible(rel_a, rel_b, tt_b):
+                    continue
+                # 去除"shared value 就是另一个 in-image 实体名"的退化情况
+                # 这类会被 irreducibility 里的 answer_visible_in_image 挡掉，但先过滤省工
+                is_in_image_name = any(
+                    val.strip().lower() == graph.entity_name(ek).strip().lower()
+                    for _, ek in entity_list if ek
+                )
+                if is_in_image_name:
+                    continue
+                dedup_key = (eA, eB, key)
+                if dedup_key in seen_merge_keys:
+                    continue
+                seen_merge_keys.add(dedup_key)
+                closures.append({
+                    "family": "set_merge",
+                    "level": 3,
+                    "anchors": [rA, rB],
+                    "answer": val,
+                    "answer_type": tt_b,
+                    "shared_fact": fk_b,
+                    "shared_value": val,
+                    "edge_a": da,
+                    "edge_b": db,
+                    "relation_a": da.get("relation", ""),
+                    "relation_b": db.get("relation", ""),
+                    "branches": [
+                        {"region": rA, "entity": eA, "fact": fk_a, "value": val, "edge": da},
+                        {"region": rB, "entity": eB, "fact": fk_b, "value": val, "edge": db},
+                    ],
+                    "score": da.get("askability", 0) + db.get("askability", 0) + 1.5,
+                })
 
-    # ---- 5) L1 read: region 自身可识别 ----
+    # ---- 6) Multi-hop lookup: N-hop (N ∈ {2, 3}) ----
+    # 桥接提升后，中间实体可以是 in-image 或 synthetic（合成）。
+    # 用全图缓存的 canonical name → entity_key 查表定位桥接点。
+    name_to_entity: dict[str, str] = dict(getattr(graph, "_name_to_entity_canon_map", {}))
+    # 合并本次 walk 已探索的 entity（确保枚举不漏本轮 walk 新带进来的实体）
+    for ek in entities:
+        canon_name = _canon(graph.entity_name(ek))
+        if canon_name and canon_name not in name_to_entity:
+            name_to_entity[canon_name] = ek
+
+    seen_multi_hop: set = set()
+    THREE_HOP_CAP = 8  # 每个锚点最多 8 条 3-hop，防组合爆炸
+
+    def _emit_multi_hop(hops: list, rA: str):
+        """hops: [(eX, fkX, dX), ...]，长度 2 或 3。"""
+        if len(hops) < 2 or len(hops) > 3:
+            return
+        # 末端事实
+        last_fk = hops[-1][1]
+        last_d = hops[-1][2]
+        final_val = state.subgraph.nodes.get(last_fk, {}).get("value", "") or ""
+        if not final_val or final_val.lower() in _BAD_ANSWERS:
+            return
+        tt_last = last_d.get("tail_type", "OTHER")
+        if tt_last == "OTHER" and _generic_answer_penalty(final_val, tt_last) >= 1.2:
+            return
+
+        # 循环 / 别名坍缩检测：所有 hop 实体的 canonical name 互不相等
+        canon_entities = [_canon(graph.entity_name(h[0])) for h in hops]
+        if len(set(canon_entities)) < len(canon_entities):
+            return
+        if _canon(final_val) in canon_entities:
+            return  # 答案回指到链上实体
+
+        # 关系语义合理性：中间跳 (0..N-2) 的 tail_type 必须是 entity-like
+        # 末端跳可以是 TIME/QUANTITY/LOCATION/PERSON/ORG/OTHER
+        for mid_hop in hops[:-1]:
+            mid_tt = mid_hop[2].get("tail_type", "OTHER")
+            if mid_tt in ("TIME", "QUANTITY"):
+                return  # 不能以数值作为桥接
+
+        # 关系词汇化可信度：每一跳的 relation 必须有足够高的 lexicalizability，
+        # 否则"covered the pre-draft workout of" 这种 Step2 LLM 从句子切出来的长关系碎片
+        # 会被当成正经 relation 参与 multi_hop 枚举。
+        # 判据：_relation_profile 给 hit_known_map 0.85 / crisp_raw 0.65 / sentence_fragment 0.2
+        # threshold 0.5 刚好过滤掉句子片段，保留通用短语。
+        for hop in hops:
+            lex = hop[2].get("lexicalizability", 0)
+            if lex < 0.5:
+                return  # 句子片段型 relation，不适合作为 multi_hop 的桥
+
+        hop_chain_data = []
+        for ek_h, fk_h, d_h in hops:
+            hop_chain_data.append({
+                "entity": ek_h,
+                "relation": d_h.get("relation", ""),
+                "value": state.subgraph.nodes.get(fk_h, {}).get("value", "") or "",
+                "edge": d_h,
+                "fact": fk_h,
+            })
+
+        dedup_key = (rA, tuple(canon_entities),
+                     tuple(h[2].get("relation", "") for h in hops),
+                     _canon(final_val))
+        if dedup_key in seen_multi_hop:
+            return
+        seen_multi_hop.add(dedup_key)
+
+        score_bonus = 2.0 if len(hops) == 2 else 3.5  # 3-hop 更值钱
+        total_ask = sum(h[2].get("askability", 0) for h in hops)
+        closures.append({
+            "family": "multi_hop",
+            "level": 3,
+            "anchors": [rA],
+            "bridge_entity": hops[1][0],  # 第一个桥
+            "bridge_value": hop_chain_data[0].get("value", ""),
+            "answer": final_val,
+            "answer_type": tt_last,
+            "hop_chain": hop_chain_data,
+            "n_hops": len(hops),
+            "score": total_ask + score_bonus,
+        })
+
+    for rk_A in regions:
+        eA = region_to_entity.get(rk_A)
+        if not eA or eA not in entities:
+            continue
+        # 锚点本身不能是合成实体（锚点必须在图里可视指代）
+        if graph.G.nodes.get(eA, {}).get("synthetic"):
+            continue
+
+        # Hop 1 枚举：收集所有可以桥接到另一个 entity 的边
+        hop1_edges_bridged = []
+        for _, fk1, d1 in state.subgraph.out_edges(eA, data=True):
+            if d1.get("etype") != ETYPE_RETRIEVE:
+                continue
+            tail_val_1 = state.subgraph.nodes.get(fk1, {}).get("value", "") or ""
+            bridge_key = _canon(tail_val_1)
+            if not bridge_key:
+                continue
+            eB = name_to_entity.get(bridge_key)
+            if not eB or eB == eA:
+                continue
+            hop1_edges_bridged.append((eB, fk1, d1))
+
+            # 2-hop: 直接从 eB 展开末端
+            for _, fk2, d2 in graph.G.out_edges(eB, data=True):
+                if d2.get("etype") != ETYPE_RETRIEVE:
+                    continue
+                _emit_multi_hop([(eA, fk1, d1), (eB, fk2, d2)], rk_A)
+
+        # 3-hop：复用 hop1 的 bridged 边找 eC
+        three_hop_count = 0
+        for eB, fk1, d1 in hop1_edges_bridged:
+            if three_hop_count >= THREE_HOP_CAP:
+                break
+            for _, fk2, d2 in graph.G.out_edges(eB, data=True):
+                if three_hop_count >= THREE_HOP_CAP:
+                    break
+                if d2.get("etype") != ETYPE_RETRIEVE:
+                    continue
+                tail_val_2 = state.subgraph.nodes.get(fk2, {}).get("value", "") or ""
+                bridge_key_2 = _canon(tail_val_2)
+                if not bridge_key_2:
+                    continue
+                eC = name_to_entity.get(bridge_key_2)
+                if not eC or eC == eA or eC == eB:
+                    continue
+                # 3-hop 末端
+                for _, fk3, d3 in graph.G.out_edges(eC, data=True):
+                    if three_hop_count >= THREE_HOP_CAP:
+                        break
+                    if d3.get("etype") != ETYPE_RETRIEVE:
+                        continue
+                    _emit_multi_hop([(eA, fk1, d1), (eB, fk2, d2), (eC, fk3, d3)], rk_A)
+                    three_hop_count += 1
+
+    # ---- 5) L1 read: region 自身能被 VLM 直接视读 ----
+    # 只对 resolve_mode=ocr_likely 的 region 生成 L1 read closure。
+    # image_search_needed 的 region 需要工具识别，不属于 L1。
     for rk in regions:
         info = graph.region_info(rk)
         etype = info.get("entity_type", "")
-        if etype in ("text", "brand", "person", "landmark", "product"):
-            name = graph.region_entity_name(rk)
-            if name:
-                closures.append({
-                    "family": "read",
-                    "level": 1,
-                    "anchors": [rk],
-                    "anchor": rk,
-                    "answer": name,
-                    "answer_type": "OTHER",
-                    "score": 0.5,
-                })
+        if etype not in ("text", "brand", "person", "landmark", "product"):
+            continue
+        resolve_mode = "ocr_likely"
+        for _, _, d in graph.G.out_edges(rk, data=True):
+            if d.get("etype") == ETYPE_RESOLVE:
+                resolve_mode = d.get("resolve_mode", "ocr_likely")
+                break
+        if resolve_mode != "ocr_likely":
+            continue
+        name = graph.region_entity_name(rk)
+        if not name:
+            continue
+        closures.append({
+            "family": "read",
+            "level": 1,
+            "anchors": [rk],
+            "anchor": rk,
+            "answer": name,
+            "answer_type": "OTHER",
+            "score": 0.5,
+        })
 
     return closures
 
@@ -899,9 +1228,31 @@ class SubgraphWalker:
                     c["n_subgraph_nodes"] = state.subgraph.number_of_nodes()
                     all_candidates.append(c)
 
+        # 补充：从全图枚举 L3 closure（walker 子图受限时的 fallback）
+        full_state = self._full_graph_state()
+        full_closures = enumerate_closures(full_state, self.graph)
+        for c in full_closures:
+            if c.get("level", 2) < 3:
+                continue  # L1/L2 由 walker 提供
+            sig = (c.get("family"), tuple(sorted(c.get("anchors", []))), c.get("answer", ""))
+            if sig in seen:
+                continue
+            seen.add(sig)
+            c["difficulty"] = "hard"
+            c["walk_steps"] = 0
+            c["n_subgraph_nodes"] = full_state.subgraph.number_of_nodes()
+            c["from_full_graph"] = True
+            all_candidates.append(c)
+
         # sort by score descending
         all_candidates.sort(key=lambda c: c.get("score", 0), reverse=True)
         return all_candidates
+
+    def _full_graph_state(self) -> WalkState:
+        """构造一个包含全图所有 region/entity/fact 及边的 WalkState，用于 L3 兜底枚举。"""
+        sg = self.graph.G.copy()
+        regions = [n for n, d in sg.nodes(data=True) if d.get("ntype") == NTYPE_REGION]
+        return WalkState(subgraph=sg, frontier=[], used_anchors=regions)
 
 
 # ============================================================
@@ -909,7 +1260,7 @@ class SubgraphWalker:
 # ============================================================
 
 def check_irreducibility(closure: dict, graph: HeteroSolveGraph) -> tuple[bool, str]:
-    """5 个不可约性检查。"""
+    """不可约性检查。基础 5 项 + 工具不可约 3 项。"""
     # 1. answer uniqueness
     val = (closure.get("answer") or "").strip().lower()
     if val in _BAD_ANSWERS or not val:
@@ -931,23 +1282,220 @@ def check_irreducibility(closure: dict, graph: HeteroSolveGraph) -> tuple[bool, 
         branches = closure.get("branches", [])
         for b in branches:
             if b.get("entity") != winner:
-                # 检查 loser 有没有同关系的同值
                 loser_ek = b.get("entity")
                 follow_rel = closure.get("follow", {}).get("relation", "")
                 for edge in graph.retrieve_edges(loser_ek):
                     if edge.get("relation") == follow_rel and graph.fact_value(edge["fact_key"]) == follow_val:
                         return False, "python_shortcut"
 
-    # 4. no_branch_shortcut: 多分支 rank 的 answer 在去掉任一分支后必须变
+    # 4. no_branch_shortcut
     # (inherently satisfied for argmax/argmin when winner is removed)
 
     # 5. answer not directly visible in image
     answer = closure.get("answer", "")
-    if closure.get("family") != "read":  # L1 read 的答案本来就是实体名
+    if closure.get("family") != "read":
         for rk in graph.regions():
             name = graph.region_entity_name(rk)
             if name and name.lower() == answer.lower():
                 return False, "answer_visible_in_image"
+
+    # 6. multi_hop 短路检查：严格 irreducibility
+    #    禁止任何能绕开桥的捷径，对 2-hop 和 3-hop 都生效
+    if closure.get("family") == "multi_hop":
+        hop_chain = closure.get("hop_chain", [])
+        if not hop_chain:
+            return False, "multi_hop_empty"
+
+        eA = hop_chain[0].get("entity", "") if hop_chain else ""
+        final_canon = _canon(closure.get("answer", ""))
+
+        # 检查 1：eA 不能有直达 final_val 的 retrieve 边
+        if eA and final_canon:
+            for edge in graph.retrieve_edges(eA):
+                if _canon(graph.fact_value(edge["fact_key"])) == final_canon:
+                    return False, "multi_hop_direct_shortcut"
+
+        # 检查 2 (3-hop only)：eA 不能有直达最后桥实体 eC 的边
+        # 否则可以跳过 eB 直接 eA→eC→answer
+        if len(hop_chain) >= 3:
+            eC = hop_chain[2].get("entity", "")
+            eC_canon = _canon(graph.entity_name(eC)) if eC else ""
+            if eA and eC_canon:
+                for edge in graph.retrieve_edges(eA):
+                    if _canon(graph.fact_value(edge["fact_key"])) == eC_canon:
+                        return False, "multi_hop_skip_bridge"
+
+        # 检查 3 (3-hop only)：eB 不能有直达 final_val 的边
+        # 否则 hop2 + hop3 可以合并为 1 步
+        if len(hop_chain) >= 3:
+            eB = hop_chain[1].get("entity", "")
+            if eB and final_canon:
+                for edge in graph.retrieve_edges(eB):
+                    if _canon(graph.fact_value(edge["fact_key"])) == final_canon:
+                        return False, "multi_hop_hop2_direct_shortcut"
+
+    return True, ""
+
+
+def check_tool_irreducibility(closure: dict, tool_plan: list[dict], bucket: str, graph: HeteroSolveGraph = None) -> tuple[bool, str]:
+    """工具不可约性检查：某个工具从序列里删掉后，题目还能答 → reject 该 bucket。
+
+    只对 L3 hard bucket 题目执行。L1/L2 不检查。
+    """
+    if closure.get("level", 2) < 3:
+        return True, ""
+    if bucket == "standard" or not bucket:
+        return True, ""
+
+    tools_used = {s.get("tool") for s in tool_plan}
+
+    # no_image_search_shortcut: image_heavy/all_tools 必须真正依赖 image_search
+    if bucket in ("image_heavy", "all_tools"):
+        if "image_search" not in tools_used:
+            return False, f"bucket_{bucket}_but_no_image_search"
+        # 至少有一个锚点的 entity 需要 image_search resolve
+        if graph is not None:
+            has_image_needed = False
+            # multi_hop / lookup 用 anchors（region key）直接查 resolve 边
+            for rk in closure.get("anchors", []):
+                for _, _, d in graph.G.out_edges(rk, data=True):
+                    if d.get("etype") == ETYPE_RESOLVE and d.get("resolve_mode") == "image_search_needed":
+                        has_image_needed = True
+                        break
+                if has_image_needed:
+                    break
+            # compare/rank/set_merge 还要看 branches
+            if not has_image_needed:
+                for b in closure.get("branches", []):
+                    rk_b = b.get("region", "")
+                    if rk_b:
+                        for _, _, d in graph.G.out_edges(rk_b, data=True):
+                            if d.get("etype") == ETYPE_RESOLVE and d.get("resolve_mode") == "image_search_needed":
+                                has_image_needed = True
+                                break
+                    if has_image_needed:
+                        break
+            if not has_image_needed:
+                return False, "image_search_replaceable_by_ocr"
+
+    # ---- prior_answerable 检查（visit_heavy 专用） ----
+    # Tier B 数据显示 visit_heavy 44% 被 no_tool 秒答，但 no_visit 0%。
+    # 说明很多"Jina 读过的事实"其实是模型先验已知的百科级常识。
+    # 检查：最终 hop 的 relation 是否是"强先验"类型（总部/创始人/创立时间等）
+    # 是 → 降级到 standard，而不是等到 Step5 才发现。
+    # false positive 代价低（standard 仍然在 hard split），false negative 代价高。
+    _STRONG_PRIOR_RELATIONS = {
+        "headquarters", "headquartered_in", "headquartered in",
+        "founded_by", "founded by", "founder",
+        "founded_in", "founded in",
+        "ceo", "owner", "owned_by", "owned by",
+        "parent_company", "parent company",
+        "country", "nationality",
+        "born_in", "born in", "birthplace",
+        "capital", "located_in", "located in", "located_at", "located at",
+        "based_in", "based in",
+    }
+
+    def _is_prior_answerable_visit(closure_inner: dict) -> bool:
+        """visit_heavy 候选的最终答案是否大概率靠先验就能推出。
+
+        条件：最终 hop 的 relation（slug 归一后）在 STRONG_PRIOR_RELATIONS 里，
+        且 head entity 看起来像百科命名实体（非纯数字/日期）。
+        """
+        hops = closure_inner.get("hop_chain") or []
+        if not hops:
+            # set_merge / compare 结构：检查 follow relation 或 branch edge relation
+            follow = closure_inner.get("follow")
+            if isinstance(follow, dict):
+                rel = (follow.get("relation") or "").strip().lower()
+                return rel in _STRONG_PRIOR_RELATIONS
+            return False
+        last_hop = hops[-1] if isinstance(hops[-1], dict) else {}
+        rel = (last_hop.get("relation") or "").strip().lower()
+        # slug 归一：去下划线
+        rel_alt = rel.replace("_", " ")
+        if rel not in _STRONG_PRIOR_RELATIONS and rel_alt not in _STRONG_PRIOR_RELATIONS:
+            return False
+        # 检查喂入该 relation 的 head entity 是命名实体（非纯数字）
+        # hop_chain 结构：entity 是链的当前节点名，value 是答案
+        head_raw = (last_hop.get("entity") or "").strip()
+        # entity key 格式是 "entity:xxx"，去前缀
+        head_entity = head_raw.split(":", 1)[-1].strip() if ":" in head_raw else head_raw
+        if not head_entity or head_entity.replace(",", "").replace(".", "").isdigit():
+            return False
+        return True
+
+    # no_visit_shortcut: visit_heavy/all_tools 必须真正依赖 visit
+    # ★ 严格门槛：visit_heavy 只吃 page_only_evidenced（真证据）
+    #   ultra_long / all_tools 可以接受 page_only_semantic（语义推的）
+    #   旧数据的 "page_only" 当作 evidenced 向后兼容
+    strict_evidenced_modes = {"page_only_evidenced", "page_only"}
+    loose_page_modes = {"page_only_evidenced", "page_only_semantic", "page_only"}
+
+    if bucket in ("visit_heavy", "all_tools"):
+        if "visit" not in tools_used:
+            return False, f"bucket_{bucket}_but_no_visit"
+        # visit_heavy 用严格；all_tools 也用严格（要求真证据）
+        accepted_modes = strict_evidenced_modes
+        branches = closure.get("branches", [])
+        has_page_only = False
+        edge_data = closure.get("edge_data", {})
+        if edge_data.get("retrieval_mode") in accepted_modes:
+            has_page_only = True
+        for b in branches:
+            if b.get("edge", {}).get("retrieval_mode") in accepted_modes:
+                has_page_only = True
+                break
+        if closure.get("follow", {}).get("retrieval_mode") in accepted_modes:
+            has_page_only = True
+        # multi_hop 的 edges 在 hop_chain 里
+        for hop in closure.get("hop_chain", []):
+            if hop.get("edge", {}).get("retrieval_mode") in accepted_modes:
+                has_page_only = True
+                break
+        if not has_page_only:
+            return False, "visit_heavy_needs_evidenced_page_only"
+        # ★ 先验可答检查：最终 hop 的 relation 是强先验 → 模型靠常识就能答
+        if bucket == "visit_heavy" and _is_prior_answerable_visit(closure):
+            return False, "visit_heavy_prior_answerable"
+
+    # ultra_long bucket：可以接受 semantic 的 page_only（宽松）
+    # 因为 ultra_long 本身就是复合（≥7 步 + ≥2 工具种），不需要纯 visit 依赖
+    if bucket == "ultra_long":
+        if "visit" not in tools_used:
+            return False, f"bucket_ultra_long_but_no_visit"
+        accepted_modes = loose_page_modes
+        branches = closure.get("branches", [])
+        has_any_page = False
+        edge_data = closure.get("edge_data", {})
+        if edge_data.get("retrieval_mode") in accepted_modes:
+            has_any_page = True
+        for b in branches:
+            if b.get("edge", {}).get("retrieval_mode") in accepted_modes:
+                has_any_page = True
+                break
+        if closure.get("follow", {}).get("retrieval_mode") in accepted_modes:
+            has_any_page = True
+        for hop in closure.get("hop_chain", []):
+            if hop.get("edge", {}).get("retrieval_mode") in accepted_modes:
+                has_any_page = True
+                break
+        if not has_any_page:
+            return False, "ultra_long_needs_any_page_only"
+
+    # no_code_shortcut: code_heavy/all_tools 必须有 ≥2 个非平凡 code skill tag
+    if bucket in ("code_heavy", "all_tools"):
+        skill_tags = set(_extract_code_skill_tags(tool_plan))
+        nontrivial = skill_tags - {"cv_preprocess", "ocr_parse"}
+        if len(nontrivial) < 2:
+            return False, f"code_nontrivial_skills_only_{len(nontrivial)}"
+
+    # ultra_long: 必须真的 ≥7 步，且工具种类 ≥3（避免 7 个 web_search 凑数）
+    if bucket == "ultra_long":
+        if len(tool_plan) < 7:
+            return False, "ultra_long_too_short"
+        if len(tools_used) < 3:
+            return False, "ultra_long_not_diverse"
 
     return True, ""
 
@@ -968,6 +1516,7 @@ class QuestionFrame:
     hidden_values: list[str]
     answer: str
     answer_type: str
+    chain_trace: str = ""  # multi_hop 专用：完整 hop 关系链，防 LLM 翻译漂移
 
 
 def compile_frame(closure: dict, graph: HeteroSolveGraph) -> QuestionFrame:
@@ -1046,9 +1595,17 @@ def compile_frame(closure: dict, graph: HeteroSolveGraph) -> QuestionFrame:
     if family == "rank":
         branches = closure.get("branches", [])
         rel = branches[0]["edge"].get("relation", "") if branches else ""
-        criterion = _relation_natural_text(rel, answer_type)
+        rel_natural = _relation_natural_text(rel, branches[0]["edge"].get("tail_type", "OTHER") if branches else "OTHER")
+        # 用 rank_type 构造 criterion（"成立时间最早" / "数值最大" 等）
+        rank_type = closure.get("rank_type", "earliest")
+        rank_phrase_map = {
+            "earliest": "最早", "latest": "最晚",
+            "largest": "最大", "smallest": "最小",
+        }
+        criterion = f"{rel_natural}{rank_phrase_map.get(rank_type, '最早')}"
         hidden_entities = [graph.entity_name(b.get("entity", "")) for b in branches]
         hidden_values = [b.get("value", "") for b in branches]
+        # answer 已经是 winner 的真 entity name，必须隐藏不让 LLM 泄露
         return QuestionFrame(
             level=3, family="rank", wh_type="which",
             visible_refs=visible_refs, criterion=criterion,
@@ -1068,6 +1625,58 @@ def compile_frame(closure: dict, graph: HeteroSolveGraph) -> QuestionFrame:
             hidden_entities=hidden_entities, hidden_values=[],
             answer=answer, answer_type=answer_type,
         )
+
+    if family == "multi_hop":
+        hop_chain = closure.get("hop_chain", [])
+        if len(hop_chain) >= 2:
+            # 隐藏所有 hop 实体名（锚点 + 所有桥）
+            hidden_entity_names = []
+            for hop in hop_chain:
+                ek = hop.get("entity", "")
+                ename = graph.entity_name(ek) if ek else ""
+                if ename:
+                    hidden_entity_names.append(ename)
+            # 隐藏所有 bridge value（除最终答案外的中间值都不能出现）
+            hidden_value_list = [h.get("value", "") for h in hop_chain[:-1]]
+            hidden_value_list.append(answer)
+
+            # criterion = 中间所有跳的关系链（用 "的" 连接），并附带原始 relation slug 供 prompt
+            mid_relations = [
+                _relation_natural_text(h.get("relation", ""), "OTHER")
+                for h in hop_chain[:-1]
+            ]
+            criterion = "的".join(mid_relations)
+
+            # 构造完整的 "真实关系链描述"（给 realize prompt 用，防 LLM 翻译漂移）
+            chain_trace_parts = []
+            for i, h in enumerate(hop_chain):
+                rel_raw = h.get("relation", "")
+                rel_natural = _relation_natural_text(rel_raw, h.get("edge", {}).get("tail_type", "OTHER"))
+                if i < len(hop_chain) - 1:
+                    # 中间跳：只给出关系，不给值（值是隐藏桥接名）
+                    chain_trace_parts.append(f"hop{i+1}[{rel_raw} → {rel_natural}]")
+                else:
+                    chain_trace_parts.append(f"hop{i+1}[{rel_raw} → {rel_natural}]（末端）")
+            chain_trace = " → ".join(chain_trace_parts)
+
+            # follow_relation = 最后一跳关系（最终问的属性）
+            last = hop_chain[-1]
+            tt_last = last.get("edge", {}).get("tail_type", answer_type)
+            follow_rel = _relation_natural_text(last.get("relation", ""), tt_last)
+            wh = _wh_type_for_relation(last.get("relation", ""), tt_last)
+
+            frame = QuestionFrame(
+                level=3, family="multi_hop", wh_type=wh,
+                visible_refs=visible_refs,
+                criterion=criterion,
+                follow_relation=follow_rel,
+                hidden_entities=hidden_entity_names,
+                hidden_values=hidden_value_list,
+                answer=answer, answer_type=tt_last,
+            )
+            # 附加字段：供 realize prompt 展示完整关系链
+            frame.chain_trace = chain_trace  # type: ignore[attr-defined]
+            return frame
 
     # fallback
     return QuestionFrame(
@@ -1100,6 +1709,8 @@ def _build_realize_prompt(frame: QuestionFrame, image_desc: str) -> str:
         "要求：",
         "- 用视觉特征指代图中实体（方位+外观），不写实体名",
         "- 问题必须是完整的自然句子，像真人好奇心提出的问题",
+        "- ★ 严格只问一个问题，整段话只能有一个问号 ？",
+        "- ★ 禁止用 \"…？XX 是…？\" 这种连问两个的写法",
     ]
     # 按题型给具体的提问引导
     if frame.family == "read":
@@ -1111,17 +1722,43 @@ def _build_realize_prompt(frame: QuestionFrame, image_desc: str) -> str:
         lines.append('  好："画面左下角那个有着金色拱门标志的快餐店，它最早是在哪座城市开的第一家店？"')
         lines.append('  坏："画面左下角品牌的创始人是谁？"（太干，没有视觉描述）')
         lines.append('  坏："画面左下角那个带有巨大黄色发光拱门标志的餐饮品牌，它的创始人是谁？"（过度堆砌形容词）')
-    elif frame.family in ("compare", "compare_then_follow"):
-        lines.append('- L3 比较题：用外观差异（球衣号码/颜色/位置）区分两个目标，问法要日常化')
+    elif frame.family == "compare":
+        lines.append('- L3 比较题：用外观差异（颜色/位置/号码）区分两个目标，问法日常化')
         lines.append('  好："穿27号球衣的那位和穿5号球衣的那位，谁的年龄更大？"')
         lines.append('  坏："画面下方偏右身穿白色27号球衣的球员和画面上方偏左身穿白色8号球衣的球员，谁的出生日期更早？"（堆砌方位词）')
-        lines.append('  要点：视觉描述够区分就行，不要把方位堆满；用"年龄更大"而非"出生日期更早"这种日常说法')
+    elif frame.family == "compare_then_follow":
+        lines.append('- L3 比较+追问题：先比较选出 winner，再追问 winner 的另一属性。')
+        lines.append('  ★ 必须合并成一个问句，把比较条件作为定语从句嵌入。整段话只能有 1 个问号。')
+        lines.append('  好："这两个广告牌对应的品牌中，成立时间更早的那个的创始人是谁？"')
+        lines.append('  好："穿 27 号和 8 号球衣的两位球员里，年龄更大的那位的出生城市是哪里？"')
+        lines.append('  坏："这两个里哪一个成立时间更早？它的创始人是谁？"（连问两个，禁止）')
+        lines.append('  坏："哪一个的创立时间更晚？它现在归属于哪家公司？"（连问两个，禁止）')
+        lines.append(f'  注意：最终答案是 follow 属性（{frame.follow_relation}），不要把 compare 的中间结果当答案')
     elif frame.family == "rank":
         lines.append('- L3 排名题：简洁列出要比较的几个目标，问谁最XX')
         lines.append('  好："图中这三个品牌广告牌，哪个品牌成立的时间最早？"')
     elif frame.family == "set_merge":
         lines.append('- L3 交集题：问两个目标的共同点')
         lines.append('  好："这两个品牌有没有在同一个证券交易所上市？"')
+    elif frame.family == "multi_hop":
+        # 展示真实关系链，防 LLM 翻译漂移
+        chain_trace = getattr(frame, "chain_trace", "")
+        if chain_trace:
+            lines.append(f'- 真实关系链（必须严格遵守）：{chain_trace}')
+        lines.append('- L3 多跳题：用"这个XX的YY的ZZ"结构把 2-3 跳串起来，中间节点不能写名字')
+        lines.append('  2-hop 好："画面里穿白色27号球衣那位球员，他效力的那支球队的主场所在城市人口是多少？"')
+        lines.append('  3-hop 好："画面里穿白色8号球衣那位球员，他所在的那支球队的母公司，曾经收购过的那家公司总部位于哪座城市？"')
+        lines.append('  坏："Jamal Murray 所在的 Denver Nuggets 主场城市人口？"（泄露锚点名+桥接名）')
+        lines.append('  要点：')
+        lines.append('    1. 锚点：只用方位+外观/号码/颜色指代，绝不写名字')
+        lines.append('    2. 每个中间跳都用"它的/其/那支/那家..."代词串联，桥接实体的名字一个都不能出现')
+        lines.append('    3. 隐藏值列表里的所有字符串都禁止写进问题')
+        lines.append('    4. 问句最后问末端属性（追问属性那一列）')
+        lines.append('    5. 3-hop 时代词可以叠加："那位的...的...的..."')
+        lines.append('    ★ 6. 问题里每一跳的语义必须严格对应下面的"真实关系链"，不能换关系')
+        lines.append('       例：真实关系是 "plays_for" → 必须用"效力的/所在的"')
+        lines.append('       例：真实关系是 "won_championship_in" → 必须用"夺冠年份"，不能说成"加入联盟年份"')
+        lines.append('       例：真实关系是 "covered_pre_draft_workout_of" → 这种太特殊的关系**不要出题**，改用描述性的问法')
     lines += [
         "- 只输出一个问题，带问号",
         "",
@@ -1130,12 +1767,18 @@ def _build_realize_prompt(frame: QuestionFrame, image_desc: str) -> str:
     return "\n".join(lines)
 
 
-def realize_frame(frame: QuestionFrame, image_b64: str, image_desc: str) -> dict | None:
+def realize_frame(frame: QuestionFrame, image_b64: str | None, image_desc: str) -> dict | None:
+    """根据 QuestionFrame 调 LLM 生成自然语言问题。
+
+    注意：不再传 image_b64 给 LLM。
+    QuestionFrame 已经包含 visible_refs（文字方位描述）+ image_desc（Step2 提取的图片描述），
+    LLM 不需要看图就能润色问题。传图只会浪费 token + 拖慢响应。
+    `image_b64` 参数保留只为兼容签名，函数内不使用。
+    """
     prompt = _build_realize_prompt(frame, image_desc)
     obj = call_vlm_json(
         prompt,
         "请生成自然中文问题。",
-        image_b64=image_b64,
         max_tokens=600,
         temperature=0.7,
         max_attempts=1,
@@ -1151,6 +1794,10 @@ def realize_frame(frame: QuestionFrame, image_b64: str, image_desc: str) -> dict
 def postcheck_name_leak(question: str, closure: dict, graph: HeteroSolveGraph) -> tuple[bool, str]:
     if not question:
         return False, "empty"
+    # 单问号检查：整段话只能有 1 个 ? 或 ？，否则是连问多个
+    n_q_marks = question.count("？") + question.count("?")
+    if n_q_marks > 1:
+        return False, f"multiple_questions:{n_q_marks}_marks"
     q_lower = question.lower()
     # hidden entities
     for name in [graph.entity_name(b.get("entity", "")) for b in closure.get("branches", [])]:
@@ -1162,6 +1809,20 @@ def postcheck_name_leak(question: str, closure: dict, graph: HeteroSolveGraph) -
         name = graph.entity_name(ek)
         if name and len(name) >= 3 and name.lower() in q_lower:
             return False, f"hidden_leak:{name}"
+    # multi_hop: anchor + 所有 bridge 名字 + 中间 bridge value 都必须隐藏
+    if closure.get("family") == "multi_hop":
+        hop_chain = closure.get("hop_chain", [])
+        ans_lower = (closure.get("answer") or "").lower()
+        for hop in hop_chain:
+            eh = hop.get("entity", "")
+            name = graph.entity_name(eh) if eh else ""
+            if name and len(name) >= 3 and name.lower() in q_lower:
+                return False, f"multi_hop_entity_leak:{name}"
+        # 中间跳的 value（除最后一跳的答案外）也是 bridge name 的字面，禁止出现
+        for hop in hop_chain[:-1]:
+            val = (hop.get("value") or "").strip()
+            if val and len(val) >= 3 and val.lower() != ans_lower and val.lower() in q_lower:
+                return False, f"multi_hop_value_leak:{val}"
     # all in-image entity names
     for rk in graph.regions():
         name = graph.region_entity_name(rk)
@@ -1184,43 +1845,40 @@ def compile_tool_plan(closure: dict, graph: HeteroSolveGraph) -> list[dict]:
     steps = []
     step_num = 0
 
+    def _needs_visit(retrieval_mode: str) -> bool:
+        """判断 retrieval_mode 是否需要 visit 步骤（兼容新旧 label）。"""
+        return retrieval_mode in ("page_only", "page_only_evidenced", "page_only_semantic")
+
+    def _resolve_mode_of(region_key: str) -> str:
+        for _, _, d in graph.G.out_edges(region_key, data=True):
+            if d.get("etype") == ETYPE_RESOLVE:
+                return d.get("resolve_mode", "ocr_likely")
+        return "ocr_likely"
+
     def _add_resolve_steps(region_key: str, entity_name: str):
+        """只在确实需要工具的情况下加 resolve 步骤。
+        - ocr_likely：VLM 能直接读，不加任何工具
+        - image_search_needed：只加 image_search 一步（crop 是隐式的，不展开为显式 code 步骤）
+        """
         nonlocal step_num
-        info = graph.region_info(region_key)
-        # 用 resolve_mode 决定工具
-        ek = graph.entity_for_region(region_key)
-        resolve_mode = "ocr_likely"
-        if ek:
-            for _, _, d in graph.G.out_edges(region_key, data=True):
-                if d.get("etype") == ETYPE_RESOLVE:
-                    resolve_mode = d.get("resolve_mode", "ocr_likely")
-                    break
-        step_num += 1
-        steps.append({
-            "step": step_num, "tool": "code_interpreter",
-            "action": f"裁剪 {info.get('location', '')} 区域",
-            "expected_output": "裁剪后的实体图像",
-        })
-        step_num += 1
+        resolve_mode = _resolve_mode_of(region_key)
         if resolve_mode == "image_search_needed":
+            step_num += 1
+            info = graph.region_info(region_key)
+            loc = info.get("location", "") or ""
             steps.append({
                 "step": step_num, "tool": "image_search",
-                "action": "反向图片搜索识别实体",
+                "action": f"对{loc}区域做图像检索以识别实体" if loc else "对目标区域做图像检索以识别实体",
                 "expected_output": f"识别出 {entity_name}",
             })
-        else:
-            steps.append({
-                "step": step_num, "tool": "code_interpreter",
-                "action": "OCR 识别文字/品牌名",
-                "expected_output": f"识别出 {entity_name}",
-            })
+        # ocr_likely → 不加任何步骤（直接视读）
 
     family = closure.get("family", "")
 
     if family == "read":
-        rk = closure.get("anchor", closure.get("anchors", [""])[0])
-        name = graph.region_entity_name(rk)
-        _add_resolve_steps(rk, name)
+        # L1 read：VLM 应该直接视读，不走任何工具链
+        # 即使 resolve_mode=image_search_needed，也不算 L1 read（应落到 L2 lookup 去）
+        return []
 
     elif family == "lookup":
         rk = closure.get("anchors", [""])[0]
@@ -1236,7 +1894,7 @@ def compile_tool_plan(closure: dict, graph: HeteroSolveGraph) -> list[dict]:
             "action": f"搜索 {name} 的{_relation_natural_text(rel, tt)}",
             "expected_output": f"获取到 {closure.get('answer', '')}",
         })
-        if retrieval_mode == "page_only":
+        if _needs_visit(retrieval_mode):
             step_num += 1
             steps.append({
                 "step": step_num, "tool": "visit",
@@ -1258,25 +1916,40 @@ def compile_tool_plan(closure: dict, graph: HeteroSolveGraph) -> list[dict]:
                 "action": f"搜索 {name} 的{_relation_natural_text(rel, tt)}",
                 "expected_output": f"获取到 {b.get('value', '')}",
             })
-            if retrieval_mode == "page_only":
+            if _needs_visit(retrieval_mode):
                 step_num += 1
                 steps.append({
                     "step": step_num, "tool": "visit",
                     "action": f"深读搜索结果页确认 {name} 的{_relation_natural_text(rel, tt)}",
                     "expected_output": f"确认 {b.get('value', '')}",
                 })
-        # compute
+        # compute: 拆成两步 — 先标准化，再比较/排序
+        step_num += 1
+        # Step A: normalize_compare —— 日期/单位/货币标准化
+        first_tail_type = branches[0].get("fact_tail_type", "OTHER") if branches else "OTHER"
+        if first_tail_type == "TIME":
+            normalize_action = "用 datetime 把日期字符串标准化为可比较的 ISO 格式"
+        elif first_tail_type == "QUANTITY":
+            normalize_action = "用 re 解析数值并标准化单位（百万/亿 → 浮点数）"
+        else:
+            normalize_action = "对收集到的值做标准化清洗"
+        steps.append({
+            "step": step_num, "tool": "code_interpreter",
+            "action": normalize_action,
+            "expected_output": "标准化后的数值列表",
+        })
+        # Step B: compute —— 比较或排序
         step_num += 1
         if family == "rank":
             steps.append({
                 "step": step_num, "tool": "code_interpreter",
-                "action": "比较多个值找出最大/最小",
+                "action": "排序多个标准化值，找出最大/最小",
                 "expected_output": "选出排名结果",
             })
         else:
             steps.append({
                 "step": step_num, "tool": "code_interpreter",
-                "action": "比较两个值选出满足条件的一方",
+                "action": "比较两个标准化后的值，选出满足条件的一方",
                 "expected_output": f"选出 {closure.get('winner', '')}",
             })
         # follow
@@ -1289,6 +1962,40 @@ def compile_tool_plan(closure: dict, graph: HeteroSolveGraph) -> list[dict]:
                 "expected_output": f"获取到 {closure.get('answer', '')}",
             })
 
+    elif family == "multi_hop":
+        hop_chain = closure.get("hop_chain", [])
+        rA = closure.get("anchors", [""])[0]
+        name_A = graph.region_entity_name(rA)
+        _add_resolve_steps(rA, name_A)  # 可能加 image_search
+
+        if len(hop_chain) >= 2:
+            # 泛化循环：对每个 hop 生成 web_search + (可选) visit
+            for hop_idx, hop in enumerate(hop_chain):
+                rel = hop.get("relation", "")
+                tt = hop.get("edge", {}).get("tail_type", "OTHER")
+                retrieval = hop.get("edge", {}).get("retrieval_mode", "snippet_only")
+                hop_val = hop.get("value", "")
+
+                step_num += 1
+                if hop_idx == 0:
+                    action = f"搜索 {name_A} 的{_relation_natural_text(rel, tt)}"
+                elif hop_idx == 1:
+                    action = f"在上一步结果基础上，搜索其{_relation_natural_text(rel, tt)}"
+                else:
+                    action = f"在前 {hop_idx} 步结果基础上，继续搜索其{_relation_natural_text(rel, tt)}"
+                steps.append({
+                    "step": step_num, "tool": "web_search",
+                    "action": action,
+                    "expected_output": f"获取到 {hop_val}",
+                })
+                if _needs_visit(retrieval):
+                    step_num += 1
+                    steps.append({
+                        "step": step_num, "tool": "visit",
+                        "action": f"深读搜索结果页确认{_relation_natural_text(rel, tt)}",
+                        "expected_output": f"确认 {hop_val}",
+                    })
+
     elif family == "set_merge":
         for rk in closure.get("anchors", []):
             name = graph.region_entity_name(rk)
@@ -1299,6 +2006,14 @@ def compile_tool_plan(closure: dict, graph: HeteroSolveGraph) -> list[dict]:
                 "action": f"搜索 {name} 的相关属性",
                 "expected_output": "获取属性集合",
             })
+        # 先 evidence_vote_merge 去重
+        step_num += 1
+        steps.append({
+            "step": step_num, "tool": "code_interpreter",
+            "action": "对多源搜索结果做去重与投票，合并候选",
+            "expected_output": "归一化的属性集合",
+        })
+        # 再求交集/差集
         step_num += 1
         steps.append({
             "step": step_num, "tool": "code_interpreter",
@@ -1332,32 +2047,117 @@ def tool_depth_score(plan: list[dict]) -> int:
 # S9. Top-Level Entry
 # ============================================================
 
+def _extract_code_skill_tags(tool_plan: list[dict]) -> set[str]:
+    """从工具序列里提取 code skill tags。
+
+    6 类 skill：
+    - cv_preprocess：裁剪、缩放、二值化
+    - ocr_parse：OCR 识别 + 文本清洗
+    - layout_geometry：bbox 面积、距离、位置排序
+    - tabular_aggregate：多值整理、groupby、merge
+    - normalize_compare：日期/单位/货币标准化后比较
+    - evidence_vote_merge：多源候选投票、去重、交集
+    """
+    skills = set()
+    for s in tool_plan:
+        if s.get("tool") != "code_interpreter":
+            continue
+        action = s.get("action", "").lower()
+        if any(k in action for k in ("裁剪", "crop", "缩放", "resize", "二值化")):
+            skills.add("cv_preprocess")
+        if any(k in action for k in ("ocr", "识别文字", "识别品牌")):
+            skills.add("ocr_parse")
+        if any(k in action for k in ("面积", "距离", "位置", "bbox", "最大", "最小", "排序")):
+            skills.add("layout_geometry")
+        if any(k in action for k in ("groupby", "聚合", "表", "合并", "merge")):
+            skills.add("tabular_aggregate")
+        if any(k in action for k in ("比较", "标准化", "归一化", "日期", "单位", "货币")):
+            skills.add("normalize_compare")
+        if any(k in action for k in ("交集", "差集", "投票", "去重", "evidence", "intersection")):
+            skills.add("evidence_vote_merge")
+    return skills
+
+
 def _classify_hard_bucket(closure: dict, tool_plan: list[dict]) -> str:
-    """给 L3 closure 打 hard bucket tag。"""
+    """给 L3 closure 打 hard bucket tag。
+
+    新优先级（工具依赖类 > 长度类）：
+      all_tools > image_heavy > visit_heavy > code_heavy > ultra_long > chain_heavy > standard
+
+    image_heavy 拆两个 subtype（对外仍是同一个 bucket）：
+      image_compare:        ≥2 visual anchors + image_search（保留旧定义）
+      image_resolve_follow: ≥1 visual anchor + image_search + follow chain ≥ 2 hops
+
+    ultra_long 降为次级标签（`is_ultra_long` flag），不再抢主 bucket。
+    """
     tools_used = {s.get("tool") for s in tool_plan}
     has_image_search = "image_search" in tools_used
     has_visit = "visit" in tools_used
     has_web = "web_search" in tools_used
-    code_actions = [s.get("action", "") for s in tool_plan if s.get("tool") == "code_interpreter"]
-    code_types = set()
-    for a in code_actions:
-        if "裁剪" in a or "crop" in a.lower():
-            code_types.add("cv")
-        elif "OCR" in a or "识别" in a:
-            code_types.add("ocr")
-        elif "比较" in a or "最" in a or "排序" in a:
-            code_types.add("compute")
-        elif "交集" in a or "差集" in a:
-            code_types.add("set_op")
 
-    if has_image_search and has_web and has_visit and len(code_types) >= 2:
+    # 用 code skill tags 替代旧的 code_types
+    skill_tags = _extract_code_skill_tags(tool_plan)
+    closure["code_skill_tags"] = list(skill_tags)
+    nontrivial_skills = skill_tags - {"cv_preprocess", "ocr_parse"}
+
+    # ---- 次级标签：is_ultra_long（≥7 步 + ≥2 工具种）----
+    # 不再作为主 bucket，改为 flag。诊断数据证明 ultra_long 抢走了大量
+    # 含 image_search 的闭合（8 张 sports 图诊断：8 个被抢走）。
+    is_ultra_long = len(tool_plan) >= 7 and len(tools_used) >= 2
+    closure["is_ultra_long"] = is_ultra_long
+
+    # ---- 主 bucket 分类（工具依赖优先）----
+
+    # 1. all_tools：4 种工具全出现 + 非平凡 code
+    if has_image_search and has_web and has_visit and len(nontrivial_skills) >= 2:
+        closure["hard_bucket_subtype"] = ""
         return "all_tools"
-    if has_image_search and len(closure.get("anchors", [])) >= 2:
-        return "image_heavy"
+
+    # 2. image_heavy：分两个 subtype
+    #    但如果 image_search 只是链的第一步且其余全是 web/visit，
+    #    不应把一条 7 步纯 visit 链标成 image_heavy。
+    #    判据：image_search 步数占总步数的比例 ≥ 某阈值 OR 是核心锚点 resolve。
+    n_anchors = len(closure.get("anchors", []))
+    n_hops = len(closure.get("hop_chain", []))
+    n_branches = len(closure.get("branches", []))
+    follow_depth = n_hops + n_branches  # follow chain 长度
+    n_image_steps = sum(1 for s in tool_plan if s.get("tool") == "image_search")
+
+    if has_image_search:
+        if n_anchors >= 2:
+            closure["hard_bucket_subtype"] = "image_compare"
+            return "image_heavy"
+        if n_anchors >= 1 and follow_depth >= 2:
+            # 对 ultra_long 级别的链（≥7 步），只有 image_search 占比 ≥ 15% 才算 image_heavy
+            # 否则 image_search 只是 1 步 resolve，链的主体是 visit/web → 归 ultra_long
+            if is_ultra_long and len(tool_plan) > 0 and n_image_steps / len(tool_plan) < 0.15:
+                pass  # 不归 image_heavy，继续往下判 visit_heavy 或 ultra_long
+            else:
+                closure["hard_bucket_subtype"] = "image_resolve_follow"
+                return "image_heavy"
+
+    # 3. visit_heavy
     if has_visit:
+        closure["hard_bucket_subtype"] = ""
         return "visit_heavy"
-    if len(code_types) >= 2:
+
+    # 4. code_heavy：≥2 类非平凡 skill
+    if len(nontrivial_skills) >= 2:
+        closure["hard_bucket_subtype"] = ""
         return "code_heavy"
+
+    # 5. ultra_long（只有当主类都不命中时才用长度做主 bucket）
+    if is_ultra_long:
+        closure["hard_bucket_subtype"] = ""
+        return "ultra_long"
+
+    # 6. chain_heavy：multi_hop 裸链
+    if closure.get("family") == "multi_hop":
+        closure["hard_bucket_subtype"] = ""
+        return "chain_heavy"
+
+    # 7. standard
+    closure["hard_bucket_subtype"] = ""
     return "standard"
 
 
@@ -1375,7 +2175,7 @@ def generate_questions(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     if max_per_level is None:
-        max_per_level = {1: 4, 2: 3, 3: 4}
+        max_per_level = {1: 4, 2: 3, 3: 8}
 
     with open(entity_json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -1410,16 +2210,25 @@ def generate_questions(
     selected: dict[int, list[dict]] = {1: [], 2: [], 3: []}
     seen_answers: set[str] = set()
     bucket_counts: dict[str, int] = {}
-    BUCKET_QUOTAS = {"image_heavy": 2, "visit_heavy": 1, "code_heavy": 1, "all_tools": 1, "standard": 2}
+    BUCKET_QUOTAS = {"image_heavy": 2, "visit_heavy": 1, "code_heavy": 1, "all_tools": 1,
+                     "chain_heavy": 2, "standard": 1, "ultra_long": 2}
 
-    # L3 先按 bucket 多样性选
+    # L3 先按 bucket 多样性选（bucket 是硬门槛，不只是标签）
     l3_candidates = [c for c in checked if c.get("level", 2) >= 3]
     l3_candidates.sort(key=lambda c: c.get("score", 0), reverse=True)
+    tool_irr_rejects = []
     for c in l3_candidates:
         ans_sig = c.get("answer", "").strip().lower()
         if ans_sig in seen_answers:
             continue
         bucket = c.get("hard_bucket", "standard")
+        # 工具不可约性硬检查：bucket 不是标签，是门槛
+        tok, treason = check_tool_irreducibility(c, c.get("tool_plan", []), bucket, graph)
+        if not tok:
+            tool_irr_rejects.append({"family": c.get("family"), "bucket": bucket, "reason": treason})
+            # 降级到 standard
+            c["hard_bucket"] = "standard"
+            bucket = "standard"
         if bucket_counts.get(bucket, 0) >= BUCKET_QUOTAS.get(bucket, 2):
             continue
         if len(selected[3]) >= max_per_level.get(3, 4):
@@ -1447,19 +2256,16 @@ def generate_questions(
         to_realize.extend(selected.get(level, []))
 
     # realize
-    image_b64 = None
-    if image_path:
-        from core.image_utils import file_to_b64
-        image_b64 = file_to_b64(image_path)
-
+    # 注：不再传图给 LLM。realize 只用 frame + image_desc 文字润色。
+    # `image_path` 仍然作为"是否走 realize 路径"的开关（None 时返回 frame skeleton）。
     results_by_level: dict[str, list] = {"level_1": [], "level_2": [], "level_3": []}
     realize_rejects = []
 
-    if image_b64 and to_realize:
+    if image_path and to_realize:
         frames = [(c, compile_frame(c, graph)) for c in to_realize]
 
         def _realize_one(idx, closure, frame):
-            result = realize_frame(frame, image_b64, graph.image_description)
+            result = realize_frame(frame, None, graph.image_description)
             return idx, closure, frame, result
 
         realized = []
@@ -1499,8 +2305,13 @@ def generate_questions(
                     "branches": closure.get("branches", []),
                     "compare_type": closure.get("compare_type"),
                     "follow": closure.get("follow"),
+                    "hop_chain": closure.get("hop_chain", []),
+                    "n_hops": closure.get("n_hops"),
                 },
                 "hard_bucket": closure.get("hard_bucket", ""),
+                "hard_bucket_subtype": closure.get("hard_bucket_subtype", ""),
+                "is_ultra_long": closure.get("is_ultra_long", False),
+                "code_skill_tags": closure.get("code_skill_tags", []),
                 "rationale": f"{closure.get('family')} from {closure.get('difficulty', 'unknown')} walk, "
                              f"tool_depth={closure.get('tool_depth', 0)}, bucket={closure.get('hard_bucket', '')}",
                 "entities_involved": [graph.region_info(rk).get("entity_id", "") for rk in closure.get("anchors", [])],
@@ -1525,6 +2336,9 @@ def generate_questions(
                 },
                 "tool_sequence": c.get("tool_plan", []),
                 "tool_depth": c.get("tool_depth", 0),
+                "hard_bucket": c.get("hard_bucket", ""),
+                "code_skill_tags": c.get("code_skill_tags", []),
+                "n_hops": c.get("n_hops"),
             })
 
     return {
@@ -1537,6 +2351,7 @@ def generate_questions(
             "selected": {level: len(items) for level, items in selected.items()},
             "realized_count": sum(len(v) for v in results_by_level.values()),
             "hard_bucket_dist": dict(bucket_counts),
+            "tool_irreducibility_rejects": tool_irr_rejects,
             "realize_rejects": realize_rejects,
         },
     }

@@ -272,14 +272,11 @@ def _relation_natural_text(relation_key: str, target_type: str = "OTHER") -> str
     if _has_token("founded", "established", "formed", "opened", "started"):
         return "成立时间"
 
-    generic_map = {
-        "PERSON": "相关人物",
-        "ORG": "相关组织",
-        "LOCATION": "相关地点",
-        "TIME": "相关时间",
-        "QUANTITY": "相关数值",
-    }
-    return generic_map.get(target_type, "相关属性")
+    # 不再维护领域特定 relation 的中文映射表——换一个领域就爆炸。
+    # 通用 fallback：直接返回 raw slug（去下划线）。
+    # 这样 realize LLM 在 prompt 里能同时看到原始 relation 和它需要的翻译工作，
+    # 不会被一个不准确的中文短语误导成语义不符的问法。
+    return rel.replace("_", " ")
 
 
 def _wh_type_for_relation(relation_key: str, target_type: str) -> str:
@@ -317,9 +314,25 @@ def _relation_profile(relation_key: str, target_type: str) -> RelationProfile:
     head = _relation_natural_text(rel, target_type)
     wh_type = _wh_type_for_relation(rel, target_type)
     askability = 0.7 + max(0.0, _relation_question_value(rel, target_type)) * 0.25
-    lexicalizability = 0.85 if not head.startswith("相关") else 0.25
-    hideability = 0.8 if not head.startswith("相关") else 0.2
-    generic_penalty = 0.9 if head.startswith("相关") else 0.0
+    # 判断关系可信度：
+    # 1. 命中已知映射（head 不是 raw slug，也不是"相关" 开头）→ 高可信
+    # 2. raw slug 但 token 数 ≤ 3 → 仍算可信的 crisp relation（如 won_championship_in / plays_for）
+    # 3. raw slug 且 token 数 > 4 → 句子片段（如 covered_the_pre_draft_workout_of）→ 低可信
+    n_tokens = len(rel.split("_"))
+    raw_fallback = head == rel.replace("_", " ")
+    hit_known_map = (not raw_fallback) and (not head.startswith("相关"))
+    is_crisp_raw = raw_fallback and n_tokens <= 3
+    is_sentence_fragment = raw_fallback and n_tokens > 4
+
+    if hit_known_map:
+        lex_base = 0.85
+    elif is_crisp_raw:
+        lex_base = 0.65  # crisp 未知关系仍可用（LLM 能从英文翻译），但分数略低
+    else:
+        lex_base = 0.2   # 句子片段，几乎不可用
+    lexicalizability = lex_base
+    hideability = 0.8 if lex_base >= 0.6 else 0.2
+    generic_penalty = 0.0 if lex_base >= 0.6 else 0.9
     if rel in _EDGE_WHITELIST:
         askability += 0.35
         lexicalizability += 0.25
