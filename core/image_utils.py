@@ -17,6 +17,24 @@ def pil_to_b64(img: Image.Image, fmt: str = "JPEG") -> str:
     return f"data:image/jpeg;base64,{b64}"
 
 
+def compress_for_vlm(img: Image.Image, max_long_edge: int = 2048, jpeg_quality: int = 85) -> str:
+    """压缩图片用于 VLM 调用：缩放 + JPEG 压缩 → data URI base64。
+
+    将大图（如 23MB PNG）压缩到 ~2-4MB JPEG，base64 后 ~3-6M 字符，
+    安全通过 20M 字符限制，同时大幅降低网络传输时间。
+    """
+    if img.mode in ("RGBA", "P", "LA"):
+        img = img.convert("RGB")
+    w, h = img.size
+    if max(w, h) > max_long_edge:
+        ratio = max_long_edge / max(w, h)
+        img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=jpeg_quality)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/jpeg;base64,{b64}"
+
+
 def file_to_b64(path: str) -> str:
     """本地图片文件转 data URI base64。"""
     with open(path, "rb") as f:

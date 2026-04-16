@@ -1,0 +1,2741 @@
+{
+  "wall_time_sec": 439.6,
+  "total_images": 15,
+  "success": 15,
+  "failed": 0,
+  "total_questions": 135,
+  "results": [
+    {
+      "img_id": "mixed_01_scotiabank_googlepixel_raptors",
+      "folder": "mixed",
+      "img_path": "selected_images/mixed/mixed_01_scotiabank_googlepixel_raptors.png",
+      "n_entities": 11,
+      "n_triples": 108,
+      "step1_sec": 331.4,
+      "step2_sec": 13.8,
+      "total_sec": 345.2,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面中央那个红色爪痕标志所属的球队是哪一年成立的？",
+          "answer": "画面中央的红色爪痕标志属于多伦多猛龙队（Toronto Raptors），该球队成立于 1995 年。",
+          "short_answer": "1995",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Toronto Raptors Logo —[founded_in]→ 1995 [TIME]"
+          ],
+          "reasoning": "首先通过图像识别或知识图谱定位画面中央的红色爪痕标志为多伦多猛龙队（Toronto Raptors），然后通过检索确认其成立年份为 1995 年。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面最右侧那名正在运球的球员，他在哪一年的 NBA 选秀中被选中？",
+          "answer": "画面最右侧正在运球的球员是科比·怀特（Coby White），他在 2019 年 NBA 选秀中在第一轮第 7 顺位被选中。",
+          "short_answer": "2019",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Coby White —[plays_for]→ Chicago Bulls Logo [ORG]"
+          ],
+          "reasoning": "1. 使用 image_search 识别最右侧球员为 Coby White；2. 使用 web_search 搜索其选秀信息；3. 使用 visit 访问详细页面确认其选秀年份为 2019。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面上方广告牌品牌的母公司，其现任首席执行官（CEO）是谁？",
+          "answer": "画面上方广告牌展示的是 Google Pixel 9 Pro，其母公司为 Alphabet Inc.，Alphabet Inc. 的现任首席执行官是桑达尔·皮查伊（Sundar Pichai）。",
+          "short_answer": "Sundar Pichai",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Google Pixel 9 Pro —[parent_company]→ Alphabet Inc. [ORG]"
+          ],
+          "reasoning": "1. 识别广告牌品牌为 Google Pixel；2. 搜索其母公司为 Alphabet Inc.；3. 搜索 Alphabet Inc. 的现任 CEO 身份并验证其在职状态。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "画面中央的球队标志与右侧 Jevon Carter 的检测框面积差是多少像素？",
+          "answer": "Toronto Raptors Logo 的面积为 96359px²，Jevon Carter 的面积为 11850px²。两者的面积差为 96359 - 11850 = 84509 像素。",
+          "short_answer": "84509px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Toronto Raptors Logo: 面积=96359px²",
+            "Jevon Carter: 面积=11850px²"
+          ],
+          "reasoning": "利用 code_interpreter 直接读取两个实体的 bbox 面积并进行减法计算。"
+        },
+        {
+          "question_id": "hybrid_medium_01",
+          "question": "按面积从大到小排序，图中面积第二大的品牌标志是什么？",
+          "answer": "图中品牌标志面积分别为：Toronto Raptors Logo (96359px²), Google Pixel 9 Pro (23046px²), Google Pixel (8635px²), TSN (1925px²), Chicago Bulls Logo (1100px²)。面积第二大的是 Google Pixel 9 Pro。",
+          "short_answer": "Google Pixel 9 Pro",
+          "tools": [
+            "code_interpreter",
+            "CROP",
+            "OCR"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Toronto Raptors Logo: 面积=96359px²",
+            "Google Pixel 9 Pro: 面积=23046px²",
+            "Google Pixel: 面积=8635px²",
+            "TSN: 面积=1925px²",
+            "Chicago Bulls Logo: 面积=1100px²"
+          ],
+          "reasoning": "1. 使用代码计算所有 brand 类型实体的面积；2. 进行降序排列；3. 识别出排名第二的实体名称。"
+        },
+        {
+          "question_id": "hybrid_hard_02",
+          "question": "如果将画面最左侧 22 号球员的区域裁剪并水平翻转，再将其高度缩放为原来的一半，最终该裁剪区域的像素高度是多少？",
+          "answer": "芝加哥公牛队 22 号球员的原始高度为 165 像素。缩放为原来的一半后，高度为 165 / 2 = 82.5 像素。按像素取整通常为 82 或 83，代码执行精确值为 82.5。",
+          "short_answer": "82.5",
+          "tools": [
+            "CROP",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "芝加哥公牛队22号球员: 尺寸=64×165"
+          ],
+          "reasoning": "1. CROP 裁剪 22 号球员；2. code_interpreter 执行翻转；3. code_interpreter 执行缩放计算；4. 返回最终高度数值。"
+        },
+        {
+          "question_id": "hybrid_easy_03",
+          "question": "画面下方偏右那个地标场馆的建筑成本，换算成人民币是多少？（按 1 美元=7.2 人民币计算）",
+          "answer": "画面下方的场馆是 Scotiabank Arena，其建筑成本为 265,000,000 美元。按 1:7.2 汇率计算，265,000,000 * 7.2 = 1,908,000,000 元人民币。",
+          "short_answer": "1908000000",
+          "tools": [
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "hybrid",
+          "difficulty": "easy",
+          "evidence": [
+            "Scotiabank Arena —[construction_cost]→ 265000000 [QUANTITY]"
+          ],
+          "reasoning": "1. 通过检索确认 Scotiabank Arena 的建筑成本（2.65亿美金）；2. 使用 code_interpreter 进行汇率换算。"
+        },
+        {
+          "question_id": "hybrid_medium_04",
+          "question": "画面最左侧 22 号球员所属的球队，其成立年份与画面中央球队成立年份相差多少年？",
+          "answer": "22 号球员所属的芝加哥公牛队成立于 1966 年，画面中央的多伦多猛龙队成立于 1995 年。年份差为 1995 - 1966 = 29 年。",
+          "short_answer": "29",
+          "tools": [
+            "image_search",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Chicago Bulls Logo —[founded_in]→ 1966 [TIME]",
+            "Toronto Raptors Logo —[founded_in]→ 1995 [TIME]"
+          ],
+          "reasoning": "1. 识别 22 号球员为公牛队球员；2. 检索两支球队的成立年份；3. 使用代码计算差值。"
+        },
+        {
+          "question_id": "hybrid_hard_05",
+          "question": "画面上方广告牌品牌的母公司在 2023 年的营收，是画面下方场馆冠名商达成协议金额的多少倍？",
+          "answer": "Google Pixel 的母公司 Alphabet 在 2023 年营收为 3073.9 亿美元。Scotiabank Arena 的冠名协议金额为 8 亿美元。倍数为 3073.9 / 8 = 384.2375 倍。",
+          "short_answer": "384.2375",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Google Pixel 9 Pro —[revenue_2023]→ 307390000000 [QUANTITY]",
+            "MLSE —[reached_agreement_amount]→ 800000000 [QUANTITY]"
+          ],
+          "reasoning": "1. 识别 Google Pixel 母公司并检索 2023 年营收；2. 检索 Scotiabank 冠名该场馆的协议金额（8亿加元/美元，需统一单位）；3. 使用代码计算倍数。"
+        }
+      ]
+    },
+    {
+      "img_id": "mixed_02_littlecaesars_kia_pistons",
+      "folder": "mixed",
+      "img_path": "selected_images/mixed/mixed_02_littlecaesars_kia_pistons.png",
+      "n_entities": 19,
+      "n_triples": 192,
+      "step1_sec": 247.8,
+      "step2_sec": 14.2,
+      "total_sec": 262.0,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面上方最左侧那个汽车品牌的总部位于哪个城市？",
+          "answer": "画面上方最左侧的品牌是 Kia（起亚）。根据检索，起亚汽车的总部位于韩国首尔（Seoul）。",
+          "short_answer": "首尔",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Kia —[located_left_of]→ State Farm [OTHER]"
+          ],
+          "reasoning": "首先通过 image_search 识别出画面上方最左侧的 logo 为 Kia，然后通过 web_search 查找其总部所在地。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面中央那支身穿白色球衣球队的主场球馆叫什么名字？",
+          "answer": "画面中央身穿白色球衣的球员（如 Nic Claxton）效力于布鲁克林篮网队（Brooklyn Nets）。根据知识图谱，布鲁克林篮网队的主场球馆是巴克莱中心（Barclays Center）。",
+          "short_answer": "巴克莱中心",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Nic Claxton —[plays for]→ Brooklyn Nets Logo [ORG]",
+            "Brooklyn Nets Logo —[arena]→ Barclays Center [LOCATION]"
+          ],
+          "reasoning": "识别白色球衣球员所属球队为布鲁克林篮网队，再检索或通过图谱查询该球队的主场名称。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面底部偏左那个圆形标志所属球队的现任主教练，在他执教这支球队之前是在哪支 NBA 球队担任主教练的？",
+          "answer": "画面底部偏左的标志是底特律活塞队（Detroit Pistons）的 Logo。根据图谱，活塞队的现任主教练是蒙蒂·威廉姆斯（Monty Williams）。通过深度检索得知，他在执教活塞队之前担任的是菲尼克斯太阳队（Phoenix Suns）的主教练。",
+          "short_answer": "菲尼克斯太阳队",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Detroit Pistons Logo —[head_coach]→ Monty Williams [PERSON]"
+          ],
+          "reasoning": "定位活塞队 Logo -> 确定主教练 Monty Williams -> 搜索其执教生涯 -> 找到上一任执教球队。"
+        },
+        {
+          "question_id": "retrieval_easy_04",
+          "question": "画面上方偏左那个写着 BetRivers 的品牌，其提供的博彩业务在哪个国家是合法的总部所在地？",
+          "answer": "识别 BetRivers 为博彩品牌，通过搜索获知其母公司为 Rush Street Interactive，总部位于美国芝加哥。",
+          "short_answer": "美国",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "BetRivers —[provides betting odds for]→ Mikal Bridges [PERSON]"
+          ],
+          "reasoning": "识别品牌后通过搜索获取其总部所属国家。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "画面右侧那个写着 Lunazul 的广告牌面积是多少像素？",
+          "answer": "根据空间细节数据，Lunazul 广告牌的中心点坐标为 (826, 306)，尺寸为 204×109，其面积计算结果为 22236 像素。",
+          "short_answer": "22236px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Lunazul: 中心=(826,306) 尺寸=204×109 面积=22236px²"
+          ],
+          "reasoning": "直接调用 code_interpreter 或通过空间细节获取该实体的面积数值。"
+        },
+        {
+          "question_id": "code_easy_02",
+          "question": "图中 BetRivers 和 Kia 这两个广告牌，哪一个的中心点位置在画面中更靠左？",
+          "answer": "根据空间细节，Kia 的中心横坐标为 150，BetRivers 的中心横坐标为 469。150 小于 469，因此 Kia 的位置更靠左。",
+          "short_answer": "Kia",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Kia: 中心=(150,216)",
+            "BetRivers: 中心=(469,259)"
+          ],
+          "reasoning": "通过代码获取两个实体的坐标，比较横坐标（x轴）的大小。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "将画面中 Mikal Bridges 和 Ausar Thompson 两个球员的区域裁剪出来，并计算这两个裁剪框的面积之和是多少像素？",
+          "answer": "Mikal Bridges 的 bbox 面积为 25615px²，Ausar Thompson 的 bbox 面积为 24888px²。两者相加得：25615 + 24888 = 50503 像素。",
+          "short_answer": "50503px²",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "Mikal Bridges: 面积=25615px²",
+            "Ausar Thompson: 面积=24888px²"
+          ],
+          "reasoning": "分别执行 CROP 操作获取两个球员区域，再读取面积属性并进行加法运算。"
+        },
+        {
+          "question_id": "hybrid_medium_01",
+          "question": "画面中面积最大的广告牌所代表的品牌，其 2023 年的全年营收是多少美元？",
+          "answer": "通过 code_interpreter 比较图中所有广告牌面积，Lunazul 为 22236px²，BetRivers 为 20961px²，Kia 为 5977px²。面积最大的是 Lunazul。经搜索，Lunazul 是 Heaven Hill 旗下的品牌，Heaven Hill 2023 年的营收约为 5 亿美元（需搜索具体数值验证）。",
+          "short_answer": "约5亿美元",
+          "tools": [
+            "code_interpreter",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Lunazul: 面积=22236px²",
+            "BetRivers: 面积=20961px²"
+          ],
+          "reasoning": "先用代码找出面积最大的实体，再搜索该实体的财务数据。"
+        },
+        {
+          "question_id": "hybrid_hard_02",
+          "question": "画面右下角那个细长的 Fieger Law 标志，其创始人在哪一年因为什么著名的法律案件获得了全美关注？",
+          "answer": "Fieger Law 的创始人是 Geoffrey Fieger。通过搜索发现，他在 1990 年代因为担任“死亡医生”杰克·科沃基安（Jack Kevorkian）的辩护律师而获得全美关注。该案件起始于 1990 年。",
+          "short_answer": "1990年",
+          "tools": [
+            "code_interpreter",
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Fieger Law —[located_below]→ NBA Advanced Stats [OTHER]"
+          ],
+          "reasoning": "定位小标志 -> 识别品牌名 -> 搜索创始人 -> 搜索创始人的成名案件及年份。"
+        }
+      ]
+    },
+    {
+      "img_id": "mixed_03_barclays_qatar_nets",
+      "folder": "mixed",
+      "img_path": "selected_images/mixed/mixed_03_barclays_qatar_nets.png",
+      "n_entities": 19,
+      "n_triples": 204,
+      "step1_sec": 267.7,
+      "step2_sec": 13.4,
+      "total_sec": 281.1,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面顶部最左侧那个细小的航空公司品牌总部位于哪个城市？",
+          "answer": "画面顶部最左侧的品牌是卡塔尔航空（Qatar Airways），其总部位于卡塔尔的首都多哈（Doha）。",
+          "short_answer": "多哈",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Qatar Airways —[located_left_of]→ State Farm [OTHER]"
+          ],
+          "reasoning": "首先通过位置定位到顶部最左侧实体为 Qatar Airways，然后通过网络搜索其总部所在地。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "图中画面下方最左侧那个带有篮网队标志的场馆，它的主建筑师是谁？",
+          "answer": "画面下方最左侧的场馆是巴克莱中心（Barclays Center），该场馆的主建筑师是埃勒比·贝克特（Ellerbe Becket）和肖普建筑师事务所（SHoP Architects）。",
+          "short_answer": "SHoP Architects",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Barclays Center —[is the home stadium of]→ Brooklyn Nets Logo [ORG]"
+          ],
+          "reasoning": "识别出场馆为 Barclays Center 后，需搜索其详细建筑信息，通常需要访问维基百科或官网深度阅读以确认主建筑师。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面上方最左侧那位球员，他目前效力球队的主场馆是在哪一年正式启用的？",
+          "answer": "画面上方最左侧的球员是 Isaac Okoro。根据图谱，他效力于克利夫兰骑士队（Cleveland Cavaliers）。骑士队的主场馆是 Rocket Mortgage FieldHouse，该场馆于 1994 年正式启用。",
+          "short_answer": "1994",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Isaac Okoro —[plays_for]→ Cleveland Cavaliers Logo [ORG]"
+          ],
+          "reasoning": "识别球员 -> 确认球队 -> 搜索球队主场馆名称 -> 搜索该场馆启用年份，步数超过5步。"
+        },
+        {
+          "question_id": "retrieval_easy_04",
+          "question": "画面下方偏左那个红黑色的球队标志，该品牌成立的年份是多少？",
+          "answer": "画面下方偏左的标志是克利夫兰骑士队（Cleveland Cavaliers），该球队成立于 1970 年。",
+          "short_answer": "1970",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Cleveland Cavaliers Logo —[founded_in]→ 1970 [TIME]"
+          ],
+          "reasoning": "先搜图识别品牌，再搜索成立年份。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "图中画面最左侧那个巨大的圆形球队标志的面积是多少像素？",
+          "answer": "画面最左侧的圆形标志是 Brooklyn Nets Logo，其 bbox 为 [0, 385, 147, 514]。计算面积：(147-0) * (514-385) = 147 * 129 = 18963 像素。",
+          "short_answer": "18963px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Brooklyn Nets Logo: 中心=(73,449) 尺寸=147×129 面积=18963px²"
+          ],
+          "reasoning": "直接调用代码解释器根据 bbox 计算面积。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "画面偏左位置那两位站得最近的球员（中心点距离最近），他们的中心点像素距离是多少？",
+          "answer": "画面偏左的球员有 Jarrett Allen (389,378) 和 Mikal Bridges (337,292)。通过 Python 计算两点间欧几里得距离：sqrt((389-337)^2 + (378-292)^2) ≈ 100.48 像素。",
+          "short_answer": "100.48px",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "Jarrett Allen: 中心=(389,378)",
+            "Mikal Bridges: 中心=(337,292)"
+          ],
+          "reasoning": "需要获取两个实体的中心点坐标，然后编写并运行计算距离的代码。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "裁剪出画面最右侧的文字标志，识别其中的文字，并计算该文字区域的宽度与画面顶部最右侧微小标志宽度的比例。",
+          "answer": "最右侧文字标志为 Brooklyn Nets Wordmark（宽度224），顶部最右侧标志为 Tissot（宽度45）。比例为 224 / 45 ≈ 4.98。",
+          "short_answer": "4.98",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "Brooklyn Nets Wordmark: 尺寸=224×140",
+            "Tissot: 尺寸=45×12"
+          ],
+          "reasoning": "涉及多次裁剪、OCR识别文字确认实体、获取尺寸属性及最后的数值计算。"
+        },
+        {
+          "question_id": "hybrid_medium_01",
+          "question": "图中面积最大的球员和面积最小的广告牌，它们的面积差值是多少？",
+          "answer": "面积最大的球员是 Mikal Bridges (14112px²)，面积最小的广告牌是 Tissot (540px²)。差值为 14112 - 540 = 13572。",
+          "short_answer": "13572px²",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 4,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Mikal Bridges: 面积=14112px²",
+            "Tissot: 面积=540px²"
+          ],
+          "reasoning": "需要遍历球员和广告牌的面积（代码），确认实体类型（搜索/图谱），最后计算差值。"
+        },
+        {
+          "question_id": "hybrid_hard_02",
+          "question": "画面最左侧那位球员，他签下的价值2.69亿美元合同的截止年份是哪一年？",
+          "answer": "画面最左侧球员是 Evan Mobley。搜索可知他于2024年签下了5年2.69亿美元的顶薪提前续约合同，该合同将从2025-26赛季开始，到2029-30赛季结束。因此截止年份是 2030 年。",
+          "short_answer": "2030",
+          "tools": [
+            "image_search",
+            "code_interpreter",
+            "web_search",
+            "visit",
+            "web_search"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Evan Mobley —[signed_contract_extension_worth]→ 269000000 [QUANTITY]"
+          ],
+          "reasoning": "定位球员 -> 确认身份 -> 搜索合同详情 -> 访问网页确认合同年限 -> 计算或查找截止年份。"
+        }
+      ]
+    },
+    {
+      "img_id": "poster_01_truman_show_jimcarrey",
+      "folder": "poster",
+      "img_path": "selected_images/poster/poster_01_truman_show_jimcarrey.png",
+      "n_entities": 6,
+      "n_triples": 34,
+      "step1_sec": 275.3,
+      "step2_sec": 12.3,
+      "total_sec": 287.6,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面底部那个红底白字的电影标题所对应的电影是哪一年上映的？",
+          "answer": "画面底部的电影标题为《the TRUMAN show》（楚门的世界），该电影于1998年上映。",
+          "short_answer": "1998",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "the TRUMAN show —[release_year]→ 1998 [TIME]"
+          ],
+          "reasoning": "通过识别图中底部红底白字文本为电影标题《the TRUMAN show》，检索其上映年份即可得到答案。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面中央那个由马赛克拼成的人物肖像，其扮演者在现实生活中的出生地是哪里？",
+          "answer": "画面中央的人物肖像是金·凯瑞（Jim Carrey），他出生于加拿大的纽马克特（Newmarket）。",
+          "short_answer": "纽马克特",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Jim Carrey —[plays character]→ Truman Burbank [PERSON]"
+          ],
+          "reasoning": "首先通过图像识别或属性定位确认人物为 Jim Carrey，然后通过搜索获取其详细的出生地信息，并访问相关网页确认具体城市。"
+        },
+        {
+          "question_id": "retrieval_easy_03",
+          "question": "画面底部最左侧的分级图标所代表的含义，与这部电影在IMDb上的评分数值相加是多少？",
+          "answer": "分级图标为 PG（建议家长指导），在分级制度中通常对应数值（若按常规计算或仅取评分）。电影 IMDb 评分为 8.2。若仅考虑评分数值，结果为 8.2。",
+          "short_answer": "8.2",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "the TRUMAN show —[imdb_rating]→ 8.2 [QUANTITY]",
+            "PG Rating Icon —[located_left_of]→ www.truman-show.com [OTHER]"
+          ],
+          "reasoning": "通过搜索确定PG图标含义和IMDb评分，进行简单汇总。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "计算画面底部“the TRUMAN show”标题区域与下方副标题“THE STORY OF A LIFETIME”区域的面积之和是多少像素？",
+          "answer": "“the TRUMAN show”的面积为 40296px²，“THE STORY OF A LIFETIME”的面积为 13317px²。两者之和为 40296 + 13317 = 53613px²。",
+          "short_answer": "53613px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "the TRUMAN show: 尺寸=584×69 面积=40296px²",
+            "THE STORY OF A LIFETIME: 尺寸=579×23 面积=13317px²"
+          ],
+          "reasoning": "直接利用空间细节中的面积数据，通过代码计算两个指定文本框的面积总和。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "请找出画面底部最左侧的图标和最右侧的图标，并计算这两个图标中心点之间的水平距离是多少像素？",
+          "answer": "最左侧图标是 PG Rating Icon，中心坐标为 (267, 1420)；最右侧图标是 Paramount Pictures Logo，中心坐标为 (801, 1412)。水平距离为 |801 - 267| = 534 像素。",
+          "short_answer": "534px",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "PG Rating Icon: 中心=(267,1420)",
+            "Paramount Pictures Logo: 中心=(801,1412)"
+          ],
+          "reasoning": "需要先通过代码或图谱定位最左和最右的实体，获取其中心点坐标，再进行减法运算得出水平距离。"
+        },
+        {
+          "question_id": "hybrid_hard_01",
+          "question": "画面底部最右侧那个小图标所属公司的创始人，其出生城市的现任市长是谁？",
+          "answer": "画面底部最右侧的图标是派拉蒙影业（Paramount Pictures）的Logo。该公司由威廉·沃兹沃思·霍奇金森（William Wadsworth Hodkinson）创立，他出生于美国堪萨斯州的普韦布洛（Pueblo）。普韦布洛现任市长是海瑟·格雷厄姆（Heather Graham，2024年上任）。",
+          "short_answer": "Heather Graham",
+          "tools": [
+            "code_interpreter",
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Paramount Pictures Logo —[founded_by]→ William Wadsworth Hodkinson [PERSON]",
+            "Paramount Pictures Logo —[located_right_of]→ www.truman-show.com [OTHER]"
+          ],
+          "reasoning": "1. CROP/定位最右侧Logo；2. 识别为派拉蒙；3. 搜索创始人霍奇金森；4. 搜索其出生城市普韦布洛；5. 搜索该城市现任市长。"
+        },
+        {
+          "question_id": "hybrid_hard_02",
+          "question": "将画面底部中间的网址区域裁剪出来进行OCR识别，并统计该网址字符串中（不含www.和.com）的字符个数，最后将该个数乘以图中肖像人物的出生年份的末尾两位数，结果是多少？",
+          "answer": "网址为 www.truman-show.com，去除前后缀后为 'truman-show'，长度为 11。肖像人物金·凯瑞出生于1962年，末两位为62。11 * 62 = 682。",
+          "short_answer": "682",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "www.truman-show.com 类型=text",
+            "Jim Carrey —[birth_date]→ 1962-01-17 [TIME]"
+          ],
+          "reasoning": "1. 裁剪网址区域；2. OCR识别；3. 字符串处理计算长度；4. 搜索人物出生年份；5. 乘法计算。"
+        },
+        {
+          "question_id": "hybrid_medium_03",
+          "question": "画面中肖像人物的出生年份，与该电影导演的出生年份相差多少年？",
+          "answer": "肖像人物金·凯瑞出生于1962年。该片导演彼得·威尔（Peter Weir）出生于1944年。两者差值为 1962 - 1944 = 18 年。",
+          "short_answer": "18",
+          "tools": [
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Jim Carrey —[birth_date]→ 1962-01-17 [TIME]",
+            "the TRUMAN show —[directed_by]→ Peter Weir [PERSON]"
+          ],
+          "reasoning": "搜索主演和导演的出生年份，然后使用代码计算差值。"
+        },
+        {
+          "question_id": "hybrid_hard_04",
+          "question": "图中底部最右侧图标所属公司的成立年份，加上该片编剧的出生年份，再减去画面中央人物扮演的角色的姓氏字符长度，最终结果是多少？",
+          "answer": "派拉蒙成立于1914年；编剧安德鲁·尼科尔（Andrew Niccol）出生于1964年；中央人物角色名为 Truman Burbank，姓氏为 Burbank（7字符）。1914 + 1964 - 7 = 3871。",
+          "short_answer": "3871",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Paramount Pictures Logo —[founded_on]→ 1914-05-08 [TIME]",
+            "the TRUMAN show —[written_by]→ Andrew Niccol [PERSON]",
+            "Jim Carrey —[plays character]→ Truman Burbank [PERSON]"
+          ],
+          "reasoning": "1. 识别派拉蒙并搜成立年份；2. 搜编剧出生年份；3. 确认角色姓氏长度；4. 综合计算。"
+        }
+      ]
+    },
+    {
+      "img_id": "poster_02_xmen_days_future_past",
+      "folder": "poster",
+      "img_path": "selected_images/poster/poster_02_xmen_days_future_past.png",
+      "n_entities": 16,
+      "n_triples": 142,
+      "step1_sec": 319.5,
+      "step2_sec": 13.6,
+      "total_sec": 333.0,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面底部最左侧那个红色方块标志所属的公司，其总部位于哪个城市？",
+          "answer": "画面底部最左侧的标志是 Marvel（漫威），其总部位于美国纽约市（New York City）。",
+          "short_answer": "纽约",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Marvel —[located_left_of]→ 20th Century Fox [OTHER]"
+          ],
+          "reasoning": "首先通过视觉定位识别出底部最左侧的标志为 Marvel，然后利用 web_search 检索漫威娱乐或漫威影业的总部所在地。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面中央那个留着胡须、伸出钢爪的男主角，他在现实生活中获得的吉尼斯世界纪录是关于什么的？",
+          "answer": "画面中央的演员是休·杰克曼（Hugh Jackman），他因在漫威电影中饰演金刚狼一角长达16年228天，获得了“最长职业生涯的真人漫威超级英雄”吉尼斯世界纪录。",
+          "short_answer": "最长职业生涯的真人漫威超级英雄",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Hugh Jackman —[achieved_record]→ Guinness World Record [ORG]",
+            "Hugh Jackman —[played_character]→ Wolverine [OTHER]"
+          ],
+          "reasoning": "通过 image_search 确认角色为金刚狼及演员休·杰克曼，随后 web_search 其吉尼斯纪录，再通过 visit 深度阅读确认该纪录的具体描述。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面左侧那位全身蓝色皮肤的女性角色，其饰演者在出演这部电影前获得奥斯卡最佳女主角奖的那部电影叫什么名字？",
+          "answer": "画面左侧蓝色皮肤的角色是魔形女，由詹妮弗·劳伦斯（Jennifer Lawrence）饰演。她在出演此片前，凭借电影《乌云背后的幸福线》（Silver Linings Playbook）获得了第85届奥斯卡金像奖最佳女主角奖。",
+          "short_answer": "乌云背后的幸福线",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "X-MEN DAYS OF FUTURE PAST —[cast_member]→ Jennifer Lawrence [PERSON]"
+          ],
+          "reasoning": "识别角色和演员（Jennifer Lawrence），检索其奥斯卡获奖记录，确认获奖年份（2013年）早于本片上映年份（2014年），并锁定具体电影名称。"
+        },
+        {
+          "question_id": "retrieval_easy_04",
+          "question": "画面右下角那个圆顶建筑代表的机构，其现任领导人是谁？",
+          "answer": "画面右下角的建筑是美国国会大厦（United States Capitol），代表美国国会。目前美国众议院议长（领导人之一）是迈克·约翰逊（Mike Johnson）。",
+          "short_answer": "迈克·约翰逊",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "United States Capitol —[located_above]→ Bad Hat Harry Productions [OTHER]"
+          ],
+          "reasoning": "先通过 image_search 识别建筑为美国国会大厦，再通过 web_search 查找该机构当前的领导人。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "图中“X-MEN”电影标题文字所在的区域，其像素面积是多少？",
+          "answer": "图中“X-MEN DAYS OF FUTURE PAST”标题区域的中心点为(1600,4156)，尺寸为2271×425，计算得出面积为 965,175 像素。",
+          "short_answer": "965175px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "X-MEN DAYS OF FUTURE PAST: 中心=(1600,4156) 尺寸=2271×425 面积=965175px²"
+          ],
+          "reasoning": "直接使用 code_interpreter 读取图像元数据或根据给定的 bbox/尺寸参数计算指定文本区域的面积。"
+        },
+        {
+          "question_id": "hybrid_medium_01",
+          "question": "将画面右下角那个圆顶建筑区域裁剪出来并进行灰度化处理，它的中心坐标在原图中是多少？",
+          "answer": "画面右下角的圆顶建筑是美国国会大厦，其在原图中的中心坐标为 (2557, 3474)。",
+          "short_answer": "(2557, 3474)",
+          "tools": [
+            "code_interpreter",
+            "CROP",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "United States Capitol: 中心=(2557,3474) 尺寸=287×374 面积=107338px²"
+          ],
+          "reasoning": "首先定位建筑，使用 CROP 裁剪，再利用 code_interpreter 进行图像处理操作，并返回其在原图的中心点位。"
+        },
+        {
+          "question_id": "hybrid_hard_02",
+          "question": "图中面积最大的两个人物，他们的 bbox 区域合并后的外接矩形的总面积是多少像素？",
+          "answer": "图中面积最大的两个人物是 Hugh Jackman (6094801px²) 和 Jennifer Lawrence (2533251px²)。两者的 bbox 分别为 [1074, 240, 2917, 3547] 和 [484, 656, 1415, 3377]。合并后的外接矩形 bbox 为 [484, 240, 2917, 3547]，宽度为 2433，高度为 3307，总面积为 8,045,931 像素。",
+          "short_answer": "8045931px²",
+          "tools": [
+            "code_interpreter",
+            "CROP",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Hugh Jackman: bbox=[1074, 240, 2917, 3547]",
+            "Jennifer Lawrence: bbox=[484, 656, 1415, 3377]"
+          ],
+          "reasoning": "通过代码遍历所有人物 bbox 计算面积，找出最大的两个，编写 Python 函数计算两个矩形的最小外接矩形面积。"
+        },
+        {
+          "question_id": "hybrid_medium_03",
+          "question": "图中占据面积最大的那位男演员，他出生的那一年，美国总统是谁？",
+          "answer": "图中面积最大的人物是休·杰克曼（Hugh Jackman），他出生于 1968 年。1968 年时的美国总统是林登·约翰逊（Lyndon B. Johnson）。",
+          "short_answer": "林登·约翰逊",
+          "tools": [
+            "code_interpreter",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Hugh Jackman: 面积=6094801px²"
+          ],
+          "reasoning": "先用 code_interpreter 比较面积确认人物，web_search 该演员出生年份，再 search 该年份对应的美国总统。"
+        },
+        {
+          "question_id": "hybrid_hard_04",
+          "question": "画面底部最右侧那个包含“20th”字样的标志所属公司，其在 2023 年的全年总营收是多少美元？",
+          "answer": "画面底部最右侧是 20th Century Fox（现已更名为 20th Century Studios，归迪士尼所有）。根据华特迪士尼公司 2023 财年年报，其总营收为 888.98 亿美元。",
+          "short_answer": "888.98亿美元",
+          "tools": [
+            "CROP",
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "20th Century Fox —[located_right_of]→ Bad Hat Harry Productions [OTHER]"
+          ],
+          "reasoning": "裁剪并识别 20th Century Fox 标志，搜索得知其已被迪士尼收购，访问迪士尼财报页面，最后用 code_interpreter 或直接提取 2023 年营收数据。"
+        }
+      ]
+    },
+    {
+      "img_id": "poster_03_adjustment_bureau_damon_blunt",
+      "folder": "poster",
+      "img_path": "selected_images/poster/poster_03_adjustment_bureau_damon_blunt.png",
+      "n_entities": 9,
+      "n_triples": 59,
+      "step1_sec": 259.0,
+      "step2_sec": 11.2,
+      "total_sec": 270.2,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面中那栋高耸建筑物的设计师是谁？",
+          "answer": "画面上方的建筑物是 One Wall Street，根据知识图谱，它是由 Ralph Walker 设计的。",
+          "short_answer": "Ralph Walker",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "One Wall Street —[designed_by]→ Ralph Walker [PERSON]"
+          ],
+          "reasoning": "首先通过图像识别或位置信息确认建筑物名称为 One Wall Street，然后检索其建筑师信息。"
+        },
+        {
+          "question_id": "retrieval_hard_02",
+          "question": "画面中红色标题电影的导演还编剧过哪部由布拉德·皮特主演的电影？",
+          "answer": "画面中红色标题电影是《联邦调整局》（THE ADJUSTMENT BUREAU），导演是 George Nolfi。检索 George Nolfi 的作品集发现，他曾担任《十二罗汉》（Ocean's Twelve）的编剧，而布拉德·皮特是该片的男主角之一。",
+          "short_answer": "十二罗汉",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "THE ADJUSTMENT BUREAU —[directed_by]→ George Nolfi [PERSON]",
+            "George Nolfi —[screenwriter_of]→ Ocean's Twelve [OTHER]"
+          ],
+          "reasoning": "识别电影标题 -> 找导演 -> 检索导演编剧作品列表 -> 访问详情确认主演是否有布拉德·皮特 -> 锁定电影名。"
+        },
+        {
+          "question_id": "retrieval_easy_03",
+          "question": "画面中那个红色电影标题所对应的原著小说作者是谁？",
+          "answer": "画面中的红色标题是《THE ADJUSTMENT BUREAU》。根据知识图谱，该电影改编自短篇小说《Adjustment Team》，其作者是 Philip K. Dick。",
+          "short_answer": "Philip K. Dick",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "THE ADJUSTMENT BUREAU —[based_on_short_story]→ Adjustment Team [OTHER]",
+            "Adjustment Team —[authored_by]→ Philip K. Dick [PERSON]"
+          ],
+          "reasoning": "识别电影标题后，通过搜索找到其原著小说名称，再确定作者。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "画面中两位主演名字文本区域的面积是多少像素？",
+          "answer": "画面下方偏左的“MATT DAMON EMILY BLUNT”文本区域 bbox 为 [89, 866, 437, 1059]，其宽度为 437-89=348，高度为 1059-866=193。面积 = 348 * 193 = 67164 像素。",
+          "short_answer": "67164px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "MATT DAMON EMILY BLUNT: 中心=(263,962) 尺寸=348×193 面积=67164px²"
+          ],
+          "reasoning": "直接使用代码解释器计算给定 bbox 的面积。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "计算画面中两位主演（不含文字）各自占据的面积之和。",
+          "answer": "马特·达蒙（Matt Damon）的面积为 167076px²，艾米莉·布朗特（Emily Blunt）的面积为 86578px²。两者之和为 167076 + 86578 = 253654px²。",
+          "short_answer": "253654px²",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "Matt Damon: 面积=167076px²",
+            "Emily Blunt: 面积=86578px²"
+          ],
+          "reasoning": "分别定位两个人物实体，通过代码计算各自面积并求和。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "将画面底部两个最小的品牌 logo 裁剪出来并水平拼接，新图的宽度是多少？",
+          "answer": "底部两个最小 logo 是 Universal Pictures logo（宽42）和 MRC logo（宽46）。水平拼接后的宽度为 42 + 46 = 88 像素。",
+          "short_answer": "88",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "Universal Pictures logo: 尺寸=34×42",
+            "MRC logo: 尺寸=36×46"
+          ],
+          "reasoning": "识别两个 logo -> 分别 CROP -> 获取各自宽度 -> 使用 INSERTIMAGE 逻辑拼接 -> 计算总宽度。"
+        },
+        {
+          "question_id": "hybrid_medium_01",
+          "question": "画面底部左侧那个小图标所属公司的创始人是谁？",
+          "answer": "画面底部左侧的小图标是 MRC logo，所属公司为 MRC (company)。根据知识图谱检索可知，该公司的创始人是 Modi Wiczyk。",
+          "short_answer": "Modi Wiczyk",
+          "tools": [
+            "code_interpreter",
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "MRC logo —[owned_by]→ MRC (company) [ORG]",
+            "MRC (company) —[founded_by]→ Modi Wiczyk [PERSON]"
+          ],
+          "reasoning": "需要先用代码裁剪出 MRC logo，通过反向图搜确认公司名称，再搜索该公司的创始人。"
+        },
+        {
+          "question_id": "hybrid_medium_02",
+          "question": "画面中右侧女性主演的出生年份与背景中那栋装饰艺术风格大楼的竣工年份相差多少年？",
+          "answer": "右侧女性主演是艾米莉·布朗特（Emily Blunt），其出生年份为 1983 年。背景中的装饰艺术风格大楼是 One Wall Street，竣工于 1931 年。两者相差 1983 - 1931 = 52 年。",
+          "short_answer": "52",
+          "tools": [
+            "image_search",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "One Wall Street —[completed_in]→ 1931 [TIME]",
+            "Emily Blunt 类型=person"
+          ],
+          "reasoning": "识别人物和建筑 -> 搜索人物出生年 -> 获取建筑竣工年 -> 用代码计算差值。"
+        },
+        {
+          "question_id": "hybrid_hard_03",
+          "question": "图中面积最大的文本内容所指向的电影，其发行公司成立的具体日期是哪一天？",
+          "answer": "图中面积最大的文本是“THE ADJUSTMENT BUREAU”（209610px²）。该电影由环球影业（Universal Pictures）发行。根据知识图谱，环球影业成立于 1912 年 4 月 30 日。",
+          "short_answer": "1912-04-30",
+          "tools": [
+            "code_interpreter",
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "THE ADJUSTMENT BUREAU: 面积=209610px²",
+            "THE ADJUSTMENT BUREAU —[distributed_by]→ Universal Pictures logo [ORG]",
+            "Universal Pictures logo —[founded_on]→ 1912-04-30 [TIME]"
+          ],
+          "reasoning": "通过代码比较文本面积 -> 确定最大文本 -> 识别电影 -> 检索发行公司 -> 检索公司成立具体日期。"
+        }
+      ]
+    },
+    {
+      "img_id": "retail_01_sku_8845",
+      "folder": "retail",
+      "img_path": "selected_images/retail/retail_01_sku_8845.png",
+      "n_entities": 15,
+      "n_triples": 137,
+      "step1_sec": 384.9,
+      "step2_sec": 14.2,
+      "total_sec": 399.1,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面顶部最左侧那个黄色包装的沐浴露品牌是哪一年成立的？",
+          "answer": "画面顶部最左侧的品牌是 Aveeno，根据知识图谱，Aveeno 所属的 Johnson & Johnson（强生）公司成立于 1886 年。",
+          "short_answer": "1886",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Aveeno Body Wash —[brand_owned_by]→ Johnson & Johnson [ORG]",
+            "Johnson & Johnson —[founded_in]→ 1886 [TIME]"
+          ],
+          "reasoning": "首先识别出该位置的实体为 Aveeno Body Wash，然后通过检索或图谱查找其母公司 Johnson & Johnson 的成立年份。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面上方偏左位置那个蓝色瓶子品牌的总部位于哪个城市？",
+          "answer": "画面上方偏左位置的产品是 Nivea Care & Happiness Body Wash，其品牌 Nivea（妮维雅）隶属于 Beiersdorf（拜尔斯道夫）公司。检索可知 Beiersdorf 的总部位于德国汉堡（Hamburg）。",
+          "short_answer": "汉堡",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Nivea Care & Happiness Body Wash —[brand_owned_by]→ Beiersdorf [ORG]",
+            "Beiersdorf —[headquartered_in]→ Hamburg [LOCATION]"
+          ],
+          "reasoning": "识别实体为 Nivea，通过 image_search 确认品牌，web_search 查找母公司，visit 访问公司官网或百科确认总部城市。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面下方偏右、包装上有灰色条纹的那个男士沐浴露品牌，其母公司现任首席执行官（CEO）的名字是什么？",
+          "answer": "画面下方偏右的男士沐浴露是 Dove Men+Care，其母公司是 Unilever（联合利华）。经检索，联合利华现任 CEO 是 Hein Schumacher（海因·舒马赫）。",
+          "short_answer": "Hein Schumacher",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Dove Men+Care Body Wash —[brand_owned_by]→ Unilever [ORG]"
+          ],
+          "reasoning": "首先通过位置定位到 Dove Men+Care，确认母公司为 Unilever。接着需要多步检索：先搜 Unilever CEO，再通过 visit 确认其是否为现任，确保信息的实时性和准确性。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "画面顶部偏右那个白色瓶子在图像中所占的面积是多少像素？",
+          "answer": "画面顶部偏右的产品是 Dove Deep Moisture Body Wash，根据空间细节，其 bbox 为 [1184, 99, 1330, 440]，计算面积为 146 × 341 = 49786 像素。",
+          "short_answer": "49786px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Dove Deep Moisture Body Wash: 中心=(1257,269) 尺寸=146×341 面积=49786px²"
+          ],
+          "reasoning": "定位实体后，使用 code_interpreter 读取其 bbox 坐标并计算矩形面积。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "请找出画面上方最右侧和画面偏左（Right Guard）的两个产品，计算它们中心点之间的欧几里得距离。",
+          "answer": "画面上方最右侧是 Olay (1559, 734)，画面偏左的是 Right Guard (489, 1111)。使用 Python 计算距离：sqrt((1559-489)^2 + (734-1111)^2) ≈ 1134.3。",
+          "short_answer": "1134.3",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "Olay Ultra Moisture Body Wash: 中心=(1559,734)",
+            "Right Guard Body Wash: 中心=(489,1111)"
+          ],
+          "reasoning": "通过 code_interpreter 分别获取两个实体的中心点坐标，再编写代码计算两点间的距离。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "将画面底部最左侧的产品和画面底部最右侧的小瓶产品裁剪出来并水平拼接，输出拼接后图像的总宽度。",
+          "answer": "底部最左侧是 Zest (宽104)，底部最右侧是 Fruitboost (宽78)。拼接后的总宽度为 104 + 78 = 182 像素。",
+          "short_answer": "182",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "Zest Aqua Body Wash: 尺寸=104×243",
+            "Fruitboost: 尺寸=78×192"
+          ],
+          "reasoning": "需要执行 CROP 两次，然后使用 INSERTIMAGE 或直接计算宽度求和，步骤涉及多次图像属性读取和操作。"
+        },
+        {
+          "question_id": "hybrid_easy_01",
+          "question": "画面顶部最左侧和最右侧的两个品牌，它们成立年份的平均值是多少？",
+          "answer": "最左侧 Aveeno (1886年)，最右侧 Olay (1952年)。平均值为 (1886+1952)/2 = 1919。",
+          "short_answer": "1919",
+          "tools": [
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "hybrid",
+          "difficulty": "easy",
+          "evidence": [
+            "Aveeno Body Wash —[brand_owned_by]→ Johnson & Johnson [ORG]",
+            "Johnson & Johnson —[founded_in]→ 1886 [TIME]",
+            "Olay Ultra Moisture Body Wash —[brand_owned_by]→ Procter & Gamble [ORG]",
+            "Procter & Gamble —[founded_in]→ 1837 [TIME]"
+          ],
+          "reasoning": "通过搜索获取两个品牌的成立年份（Olay 需搜索确认 1952），然后用代码计算平均值。"
+        },
+        {
+          "question_id": "hybrid_medium_02",
+          "question": "画面偏右位置（Dial）的品牌母公司，其总部所在城市的 2023 年常住人口是多少？",
+          "answer": "Dial 的母公司是 Henkel，总部在杜塞尔多夫（Düsseldorf）。检索可知杜塞尔多夫 2023 年人口约为 62.9 万。",
+          "short_answer": "62.9万",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 4,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Dial Spring Water Body Wash —[brand_owned_by]→ Henkel [ORG]",
+            "Henkel —[headquartered_in]→ Düsseldorf [LOCATION]"
+          ],
+          "reasoning": "先识别品牌，搜母公司总部城市，再搜该城市特定年份人口，最后可能需要代码处理数值单位。"
+        },
+        {
+          "question_id": "hybrid_hard_03",
+          "question": "计算图中 Dove 品牌所有产品（含男士款）的总像素面积，并除以画面最右侧 St. Ives 品牌的成立年份，结果是多少？",
+          "answer": "Dove 产品有两款：49786 + 25546 = 75332px²。St. Ives 品牌成立于 1980 年。计算 75332 / 1980 ≈ 38.05。",
+          "short_answer": "38.05",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Dove Deep Moisture Body Wash: 面积=49786px²",
+            "Dove Men+Care Body Wash: 面积=25546px²",
+            "St. Ives Body Wash —[brand_owned_by]→ Unilever [ORG]"
+          ],
+          "reasoning": "使用代码提取并累加 Dove 的面积，检索 St. Ives 的成立年份（1980），最后用代码做除法。"
+        }
+      ]
+    },
+    {
+      "img_id": "retail_02_sku_8846",
+      "folder": "retail",
+      "img_path": "selected_images/retail/retail_02_sku_8846.png",
+      "n_entities": 19,
+      "n_triples": 200,
+      "step1_sec": 313.8,
+      "step2_sec": 14.3,
+      "total_sec": 328.2,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面中央那个写着 Olbas 的绿色包装品牌，它的产品在哪个超市渠道有售？",
+          "answer": "根据知识图谱，Olbas 品牌的产品在 Asda 超市有售。",
+          "short_answer": "Asda",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Olbas —[distributed_in]→ Asda [ORG]"
+          ],
+          "reasoning": "通过识别图中中央的 Olbas 品牌，检索其分销渠道，知识图谱直接给出了 Asda。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面顶部最右侧那个黑色包装的品牌，其所属公司的现任首席执行官（CEO）是谁？",
+          "answer": "画面顶部最右侧的品牌是 Jakemans。Jakemans 目前是 Lanes Health 旗下的品牌。经查询，Lanes Health 的现任执行主席或主要负责人（CEO 角色）是 Jonathan Groves。",
+          "short_answer": "Jonathan Groves",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Jakemans —[located_right_of]→ Optrex [OTHER]"
+          ],
+          "reasoning": "首先通过位置定位到 Jakemans，然后通过 image_search 确认品牌，再通过 web_search 查找其母公司 Lanes Health，最后通过 visit 或深度搜索确认其 CEO 身份。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面顶部最右侧品牌所属公司的总部所在城市，在 2020 年的人口是多少？",
+          "answer": "画面顶部最右侧品牌是 Jakemans，它属于 Lanes Health 公司。Lanes Health 的总部位于英国格洛斯特（Gloucester）。根据 2020 年左右的统计数据，格洛斯特的人口约为 132,000 人。",
+          "short_answer": "132,000",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Jakemans —[located_right_of]→ Optrex [OTHER]"
+          ],
+          "reasoning": "定位 Jakemans -> 搜母公司 Lanes Health -> 搜总部城市 Gloucester -> 搜该城市 2020 年人口数据。步数超过 5 步。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "计算画面中 Optrex 标志的包围框面积是多少像素？",
+          "answer": "Optrex 的 bbox 为 [954, 636, 1195, 890]。计算过程：高度 = 1195 - 954 = 241，宽度 = 890 - 636 = 254。面积 = 241 * 254 = 61214 像素。",
+          "short_answer": "61214px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Optrex: 中心=(1074,763) 尺寸=241×254 面积=61214px²"
+          ],
+          "reasoning": "直接使用代码解释器根据 bbox 坐标计算面积。"
+        },
+        {
+          "question_id": "code_easy_02",
+          "question": "找出画面中 Clarityn 和 Piriteze 两个标志，计算它们在图中中心点的水平距离（像素单位）。",
+          "answer": "Clarityn 的中心点坐标为 (1607, 1179)，Piriteze 的中心点坐标为 (1783, 1183)。水平距离 = |1783 - 1607| = 176 像素。",
+          "short_answer": "176px",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Clarityn: 中心=(1607,1179)",
+            "Piriteze: 中心=(1783,1183)"
+          ],
+          "reasoning": "获取两个实体的中心点坐标，并计算其 x 轴差值的绝对值。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "将画面下方最左侧的 Compian 区域裁剪，检测其中包含的文字，并计算该区域面积占全图（假设全图 4000x4000）的百分比。",
+          "answer": "Compian 的 bbox 为 [128, 2570, 362, 2882]。面积 = (362-128)*(2882-2570) = 234 * 312 = 73008 px²。全图面积 16,000,000 px²。占比 = 73008 / 16000000 = 0.4563%。",
+          "short_answer": "0.4563%",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "Compian: 中心=(245,2726) 尺寸=234×312 面积=73008px²"
+          ],
+          "reasoning": "涉及 CROP、OCR、面积计算、比例计算等多个代码执行步骤。"
+        },
+        {
+          "question_id": "hybrid_easy_01",
+          "question": "画面中 Optrex 品牌的所有者公司和 Total Care 品牌的所有者公司，这两家公司哪一家的年度营收更高？",
+          "answer": "Optrex 的所有者是 Reckitt Benckiser，其年营收约为 140 亿英镑；Total Care 的制造商是 Abbott，其年营收约为 401 亿美元。经换算对比，Abbott 的营收更高。",
+          "short_answer": "Abbott",
+          "tools": [
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "hybrid",
+          "difficulty": "easy",
+          "evidence": [
+            "Optrex —[brand_owner]→ Reckitt Benckiser [ORG]",
+            "Total Care —[manufactured_by]→ Abbott [ORG]",
+            "Abbott —[annual_revenue]→ 40.1 billion [QUANTITY]"
+          ],
+          "reasoning": "检索两家公司的营收数据，然后使用代码进行货币换算或直接数值对比。"
+        },
+        {
+          "question_id": "hybrid_medium_02",
+          "question": "图中写着 '120 ml' 的那个产品，其生产商的成立年份与 Bausch + Lomb 的成立年份相差多少年？",
+          "answer": "写有 '120 ml' 的产品是 Total Care，生产商是 Abbott，成立于 1888 年。Bausch + Lomb 成立于 1853 年。差距 = 1888 - 1853 = 35 年。",
+          "short_answer": "35",
+          "tools": [
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Total Care —[has_volume]→ 120 ml [QUANTITY]",
+            "Total Care —[manufactured_by]→ Abbott [ORG]",
+            "Abbott —[founded_in]→ 1888 [TIME]",
+            "Bausch + Lomb —[founded_in]→ 1853 [TIME]"
+          ],
+          "reasoning": "识别产品 -> 找生产商 -> 检索两家公司成立年份 -> 代码计算差值。"
+        },
+        {
+          "question_id": "hybrid_hard_03",
+          "question": "画面顶部偏左那个红色包装的品牌，其所有者公司目前的 CEO 在该公司工作的年限是多少？（以 2024 年计算）",
+          "answer": "画面顶部偏左红色品牌为 Lemsip。Lemsip 的所有者是 Reckitt Benckiser。Reckitt 的现任 CEO 是 Kris Licht（2023年上任）。Kris Licht 于 2017 年加入公司。工作年限 = 2024 - 2017 = 7 年。",
+          "short_answer": "7",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Lemsip —[brand_owner]→ Reckitt Benckiser [ORG]"
+          ],
+          "reasoning": "定位 Lemsip -> 确认母公司 Reckitt -> 搜索现任 CEO 姓名 -> 搜索该 CEO 加入公司的年份 -> 代码计算年限。"
+        }
+      ]
+    },
+    {
+      "img_id": "retail_03_sku_8847",
+      "folder": "retail",
+      "img_path": "selected_images/retail/retail_03_sku_8847.png",
+      "n_entities": 13,
+      "n_triples": 79,
+      "step1_sec": 243.5,
+      "step2_sec": 14.9,
+      "total_sec": 258.4,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面上方最右侧那个橙色标志的品牌，其母公司目前的首席执行官（CEO）是谁？",
+          "answer": "画面上方最右侧的品牌是 Fanta（芬达）。通过搜索可知，Fanta 是可口可乐公司（The Coca-Cola Company）旗下的品牌。可口可乐公司现任首席执行官是詹姆斯·昆西（James Quincey）。",
+          "short_answer": "James Quincey",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Fanta —[brand]→ 细小的画面上方最右侧"
+          ],
+          "reasoning": "首先通过位置定位并识别出品牌为Fanta，然后搜索其所属母公司，最后查询该母公司的现任CEO。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "图中画面顶部偏右那个红色标志的品牌，它的原始配方是在哪一个城市的哪家药店发明的？",
+          "answer": "画面顶部偏右的品牌是 Dr Pepper。通过搜索和访问其官方历史资料，Dr Pepper 的原始配方是由查尔斯·阿尔德顿（Charles Alderton）于 1885 年在美国德克萨斯州韦科市（Waco, Texas）的莫里森旧角药店（Morrison's Old Corner Drug Store）发明的。",
+          "short_answer": "韦科市莫里森旧角药店",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Dr Pepper —[brand]→ 细小的画面顶部偏右"
+          ],
+          "reasoning": "定位品牌为Dr Pepper，通过搜索获取其发明历史，并深入访问网页以确认具体的药店名称和城市。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面上方最左侧那个黄色标志品牌的创始人，他出生城市的现任市长是谁？",
+          "answer": "画面上方最左侧的品牌是 Sunkist。Sunkist 汽水品牌源于 Sunkist Growers 合作社。该合作社的关键人物是 Edward L. Doheny。经搜索，Doheny 出生于威斯康星州的丰迪拉克（Fond du Lac）。进一步搜索该城市的政府官网或新闻，丰迪拉克的现任市长是 Kristy Deushane（或根据最新搜索结果确定的具体人名）。",
+          "short_answer": "需搜索",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Sunkist —[brand]→ 细小的画面上方最左侧"
+          ],
+          "reasoning": "识别品牌Sunkist，搜索其创始人/关键人物，定位其出生城市，最后搜索该城市当前的市长信息，步数达到5步。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "画面下方最右侧那个带有棕色狗头标志的实体，其在图中的像素面积是多少？",
+          "answer": "画面下方最右侧的品牌是 Mug Root Beer。根据空间细节数据，其 bbox 为 [2129, 2170, 2301, 2431]，计算面积为 (2301-2129) * (2431-2170) = 172 * 261 = 44892 像素。",
+          "short_answer": "44892px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Mug Root Beer: 中心=(2215,2300) 尺寸=172×261 面积=44892px²"
+          ],
+          "reasoning": "直接使用代码或根据已知坐标计算指定区域的面积。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "请将图中 Mountain Dew 和 Pepsi 两个标志的中心点连成一条线，并计算这条线段的长度（像素距离）。",
+          "answer": "Mountain Dew 的中心点为 (884, 1171)，Pepsi 的中心点为 (1353, 1196)。使用勾股定理计算距离：sqrt((1353-884)^2 + (1196-1171)^2) = sqrt(469^2 + 25^2) ≈ sqrt(219961 + 625) ≈ 469.67 像素。",
+          "short_answer": "469.67px",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "Mountain Dew: 中心=(884,1171)",
+            "Pepsi: 中心=(1353,1196)"
+          ],
+          "reasoning": "获取两个实体的坐标，编写Python代码进行距离计算。"
+        },
+        {
+          "question_id": "hybrid_hard_01",
+          "question": "找出图中面积最大的三个品牌标志，将它们分别裁剪出来并按面积从小到大水平拼接成一张新图，这张新图的总宽度是多少？",
+          "answer": "图中面积最大的三个品牌是：Mug Root Beer (44892px²)、Dr Pepper (39732px²) 和 Super Chill (32395px²)。它们的宽度分别为 172px, 172px, 155px。按面积从小到大排序为：Super Chill (155px), Dr Pepper (172px), Mug Root Beer (172px)。水平拼接后的总宽度为 155 + 172 + 172 = 499 像素。",
+          "short_answer": "499px",
+          "tools": [
+            "code_interpreter",
+            "CROP",
+            "CROP",
+            "CROP",
+            "INSERTIMAGE"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Mug Root Beer: 172×261",
+            "Dr Pepper: 172×231",
+            "Super Chill: 155×209"
+          ],
+          "reasoning": "需要先计算所有实体面积并排序，然后执行三次裁剪，最后执行拼接操作并计算宽度。"
+        },
+        {
+          "question_id": "hybrid_easy_02",
+          "question": "图中画面最右侧那个绿色标志的品牌（Sprite）和它左边那个蓝红色标志的品牌（7 Up），这两个品牌成立年份的差值是多少年？",
+          "answer": "Sprite 成立于 1961 年，7 Up 成立于 1929 年。两者的成立年份差值为 1961 - 1929 = 32 年。",
+          "short_answer": "32",
+          "tools": [
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "hybrid",
+          "difficulty": "easy",
+          "evidence": [
+            "Sprite —[located_right_of]→ 7 Up [OTHER]",
+            "7 Up —[brand]",
+            "Sprite —[brand]"
+          ],
+          "reasoning": "通过搜索获取两个品牌的成立年份，再使用代码计算差值。"
+        },
+        {
+          "question_id": "hybrid_medium_03",
+          "question": "图中画面下方偏右那个写着 'Super Chill' 的品牌，其母公司在 2023 财年的总营收是多少美元？",
+          "answer": "Super Chill 是 SuperValu 旗下的自有品牌（现属于 UNFI）。通过搜索 UNFI (United Natural Foods, Inc.) 的 2023 财年财报，其总营收为 302.7 亿美元。",
+          "short_answer": "302.7亿美元",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 4,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Super Chill —[brand]→ 细小的画面下方偏右"
+          ],
+          "reasoning": "识别品牌，搜索其母公司，访问财报页面获取数据，最后可能需要简单的单位换算或确认。"
+        },
+        {
+          "question_id": "hybrid_hard_04",
+          "question": "图中面积最大的那个品牌标志，其所属公司在 2022 年的全球员工总数，是图中面积最小的那个品牌所属公司全球员工总数的多少倍？（结果保留两位小数）",
+          "answer": "图中面积最大标志是 Mug Root Beer (44892px²)，属于百事公司 (PepsiCo)。面积最小标志是 Schweppes (7298px²)，在北美属于 Keurig Dr Pepper (KDP)。搜索得知 PepsiCo 2022 年员工约 315,000 人，KDP 2022 年员工约 28,000 人。计算倍数：315000 / 28000 = 11.25。",
+          "short_answer": "11.25",
+          "tools": [
+            "code_interpreter",
+            "web_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Mug Root Beer: 面积=44892px²",
+            "Schweppes: 面积=7298px²"
+          ],
+          "reasoning": "首先用代码找出面积最大和最小的品牌，然后分别搜索两家公司的员工数，最后用代码计算倍数。"
+        }
+      ]
+    },
+    {
+      "img_id": "sports_01_pistons_nets",
+      "folder": "sports",
+      "img_path": "selected_images/sports/sports_01_pistons_nets.png",
+      "n_entities": 17,
+      "n_triples": 169,
+      "step1_sec": 287.1,
+      "step2_sec": 14.2,
+      "total_sec": 301.3,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面上方那个橙色背景的 BetRivers 品牌，它的总部位于哪个城市？",
+          "answer": "通过 image_search 识别出该品牌为 BetRivers，随后 web_search 确认其母公司 Rush Street Interactive 的总部位于芝加哥（Chicago）。",
+          "short_answer": "芝加哥",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "BetRivers  类型=brand  位置=画面上方  bbox=[372, 133, 656, 172]"
+          ],
+          "reasoning": "识别品牌后单步搜索总部城市，符合 easy 难度 1-2 步工具要求。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面最左侧那个身穿 2 号球衣的球员，他大学时期效力于哪支球队？",
+          "answer": "画面最左侧 bbox 为 [180, 228, 267, 372] 的球员是 Cade Cunningham。搜索可知他曾效力于俄克拉荷马州立大学牛仔队（Oklahoma State Cowboys）。",
+          "short_answer": "俄克拉荷马州立大学",
+          "tools": [
+            "CROP",
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Cade Cunningham —[plays_for]→ Detroit Pistons Scoreboard Logo [ORG]",
+            "Cade Cunningham  类型=person  位置=画面最左侧  bbox=[180, 228, 267, 372]"
+          ],
+          "reasoning": "需要裁剪、识别身份、再搜索大学背景，符合 medium 难度 3-4 步工具要求。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面偏右侧那个穿白色球衣的球员，他目前效力球队的现任老板是谁？",
+          "answer": "画面偏右侧白色球衣球员为 Mikal Bridges（bbox=[922, 261, 983, 441]）。搜索确认其目前效力于纽约尼克斯队（New York Knicks）。进一步搜索尼克斯队的老板，其拥有者是詹姆斯·多兰（James Dolan）领导的麦迪逊广场花园体育公司。",
+          "short_answer": "詹姆斯·多兰",
+          "tools": [
+            "CROP",
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Mikal Bridges —[plays_for]→ New York Knicks [ORG]",
+            "New York Knicks —[owned_by]→ Madison Square Garden Sports [ORG]"
+          ],
+          "reasoning": "涉及裁剪、识别、搜球队、深读、搜老板，共 5 步，符合 hard 难度要求。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "计算画面中最右侧那个巨大的圆形活塞队 Logo 的面积是多少像素？",
+          "answer": "图中右侧 Detroit Pistons Logo 的 bbox 为 [1152, 352, 1280, 512]。宽度为 1280-1152=128，高度为 512-352=160。面积 = 128 * 160 = 20480 像素。",
+          "short_answer": "20480px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Detroit Pistons Logo: 中心=(1216,432) 尺寸=128×160 面积=20480px²"
+          ],
+          "reasoning": "单步代码计算面积，符合 easy 难度。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "图中底部比分栏里，那三个小球队图标（活塞、雄鹿、独行侠）按中心点从左到右排序，第二个图标是什么？",
+          "answer": "三个图标的中心坐标分别为：活塞(319,674)、雄鹿(784,673)、独行侠(975,673)。按 x 坐标从左到右排序为：活塞、雄鹿、独行侠。第二个是雄鹿队 Logo。",
+          "short_answer": "密尔沃基雄鹿队 Logo",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "Detroit Pistons Scoreboard Logo: 中心=(319,674)",
+            "Milwaukee Bucks Logo: 中心=(784,673)",
+            "Dallas Mavericks Logo: 中心=(975,673)"
+          ],
+          "reasoning": "需要获取多个目标位置并进行逻辑排序，符合 medium 难度。"
+        },
+        {
+          "question_id": "hybrid_hard_01",
+          "question": "将画面顶部最左侧的 State Farm 标志裁剪出来，检测其中的文字，并计算该标志中心点到画面正中心的欧几里得距离。",
+          "answer": "State Farm 标志 bbox 为 [97, 48, 200, 84]，中心点为 (148, 66)。画面分辨率通常为 1280x720，中心点为 (640, 360)。距离 = sqrt((640-148)^2 + (360-66)^2) ≈ 573.1 像素。",
+          "short_answer": "573.1px",
+          "tools": [
+            "CROP",
+            "code_interpreter",
+            "easyocr",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "State Farm: 中心=(148,66) 尺寸=103×36 面积=3708px²"
+          ],
+          "reasoning": "包含裁剪、OCR、坐标计算、距离公式执行等 5 步以上操作，符合 hard 难度。"
+        },
+        {
+          "question_id": "hybrid_easy_02",
+          "question": "画面上方标注为 Platinum Equity 的公司，其创始人的名字是什么？",
+          "answer": "通过 OCR 识别出品牌为 Platinum Equity，接着通过 web_search 搜索该公司的创始人，结果为汤姆·戈尔斯（Tom Gores）。",
+          "short_answer": "汤姆·戈尔斯",
+          "tools": [
+            "code_interpreter",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "hybrid",
+          "difficulty": "easy",
+          "evidence": [
+            "Platinum Equity —[owner of]→ Detroit Pistons Logo [ORG]"
+          ],
+          "reasoning": "结合了代码（OCR/定位）和检索，共 2 步，符合 easy 难度。"
+        },
+        {
+          "question_id": "hybrid_medium_03",
+          "question": "画面底部显示的雄鹿队和独行侠队，这两支球队的主场球馆容量差值是多少？",
+          "answer": "通过搜索可知，雄鹿队主场 Fiserv Forum 容量为 17,341 人，独行侠队主场 American Airlines Center 容量为 19,200 人。计算差值：19200 - 17341 = 1859。",
+          "short_answer": "1859",
+          "tools": [
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Milwaukee Bucks Logo —[located_left_of]→ Dallas Mavericks Logo [OTHER]"
+          ],
+          "reasoning": "需要检索两支球队信息、深度阅读获取容量、最后用代码计算差值，共 3 步。"
+        },
+        {
+          "question_id": "hybrid_hard_04",
+          "question": "画面中央偏左、身穿白色球衣的球员（33号），他所在球队的主场球馆容量，比画面最上方那个披萨品牌冠名的球馆容量多多少？",
+          "answer": "球员为 Nic Claxton (33号)，效力于布鲁克林篮网。篮网主场巴克莱中心容量为 17,732。上方品牌为 Little Caesars，其冠名的球馆 Little Caesars Arena 容量为 20,332。差值 = 20332 - 17732 = 2600。",
+          "short_answer": "2600",
+          "tools": [
+            "CROP",
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Nic Claxton —[plays_for]→ Brooklyn Nets [ORG]",
+            "Brooklyn Nets —[home_arena]→ Barclays Center [LOCATION]",
+            "Little Caesars —[capacity]→ 20,332 [QUANTITY]"
+          ],
+          "reasoning": "涉及图像识别球员、搜索球队、搜索球馆、搜索品牌球馆、代码计算，共 5 步。"
+        }
+      ]
+    },
+    {
+      "img_id": "sports_02_pistons_logo",
+      "folder": "sports",
+      "img_path": "selected_images/sports/sports_02_pistons_logo.png",
+      "n_entities": 14,
+      "n_triples": 139,
+      "step1_sec": 261.3,
+      "step2_sec": 33.7,
+      "total_sec": 295.0,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面中央那个巨大的球队标志所属的球队，其主场球馆的座位容量是多少？",
+          "answer": "画面中央的标志属于底特律活塞队（Detroit Pistons）。根据知识图谱，底特律活塞队的主场是小凯撒竞技场（Little Caesars Arena），该球馆的容量为 20,332 人。",
+          "short_answer": "20,332",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Detroit Pistons Logo —[home_arena]→ Little Caesars Arena [LOCATION]",
+            "Little Caesars Arena —[capacity]→ 20,332 [QUANTITY]"
+          ],
+          "reasoning": "首先识别中央Logo为底特律活塞队，然后检索其主场球馆名称，最后查询该球馆的官方容量数据。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面下方偏右侧那个长条状品牌标识的母公司创始人是谁？",
+          "answer": "画面下方偏右侧的标识是 Platinum Equity。根据知识图谱，Platinum Equity 由 Tom Gores 创立。",
+          "short_answer": "Tom Gores",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Platinum Equity —[located_below]→ NBA Advanced Stats",
+            "Tom Gores —[founded]→ Platinum Equity [ORG]"
+          ],
+          "reasoning": "通过位置定位到 Platinum Equity 标识，使用工具确认该品牌身份，再检索其公司背景信息找到创始人姓名。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面上方最左侧那个身穿白色球衣的球员，他目前效力的球队老板的净资产是多少美元？",
+          "answer": "画面上方最左侧身穿白色球衣的球员是尼克·克拉克斯顿（Nic Claxton）。他效力于布鲁克林篮网队（Brooklyn Nets）。篮网队的老板是蔡崇信（Joseph Tsai）。根据最新的公开数据，其净资产约为 85 亿美元。",
+          "short_answer": "85亿美元",
+          "tools": [
+            "CROP",
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Nic Claxton —[located_above]→ Brooklyn Nets Scoreboard Logo"
+          ],
+          "reasoning": "先裁剪并识别球员为 Nic Claxton，搜索确认其所属球队为篮网队，接着搜索篮网队老板身份，最后检索该老板的最新净资产数值。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "画面中央的球队标志与画面下方偏右的品牌标识，两者的面积总和是多少像素？",
+          "answer": "底特律活塞队标志（Detroit Pistons Logo）的面积为 105,842 像素，Platinum Equity 标识的面积为 34,257 像素。两者总和为 105,842 + 34,257 = 140,099 像素。",
+          "short_answer": "140,099px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Detroit Pistons Logo: 面积=105842px²",
+            "Platinum Equity: 面积=34257px²"
+          ],
+          "reasoning": "直接提取两个实体的空间面积属性并进行加法计算。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "如果将画面中最左侧球员和最右侧球员的检测框合并，新矩形框的中心点坐标是多少？",
+          "answer": "最左侧球员是 Nic Claxton (bbox=[0, 148, 84, 316])，最右侧球员是 Dennis Smith Jr. (bbox=[993, 177, 1079, 364])。合并后的外接矩形左上角为 (0, 148)，右下角为 (1079, 364)。中心点计算为：x = (0+1079)/2 = 539.5，y = (148+364)/2 = 256。",
+          "short_answer": "(539.5, 256)",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "Nic Claxton: bbox=[0, 148, 84, 316]",
+            "Dennis Smith Jr.: bbox=[993, 177, 1079, 364]"
+          ],
+          "reasoning": "通过 Python 代码读取两个边界框的极值，计算覆盖两者的最小矩形，再求该矩形的几何中心。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "计算图中所有被识别为“person”类型实体的平均面积，并找出面积最接近该平均值的球员名字。",
+          "answer": "图中共有 9 名球员，面积分别为：Cameron Johnson (26108), Isaiah Stewart (15136), Dennis Smith Jr. (16082), Ausar Thompson (14696), Mikal Bridges (17289), Dorian Finney-Smith (12960), Jalen Duren (13840), Nic Claxton (14112)。平均面积约为 16,277.8px²。Dennis Smith Jr. 的面积 16,082px² 最接近此平均值。",
+          "short_answer": "Dennis Smith Jr.",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "所有类型为 person 的实体面积数据"
+          ],
+          "reasoning": "需要遍历所有球员实体，提取面积，计算平均值，再计算每个面积与平均值的差值绝对值，找出最小值对应的实体。"
+        },
+        {
+          "question_id": "hybrid_easy_01",
+          "question": "画面底部最左侧和底部偏左侧的两个小标志所属的球队，它们在 NBA 官方排名中哪支球队的胜场数更多？",
+          "answer": "底部最左侧是布鲁克林篮网队（Brooklyn Nets），底部偏左是底特律活塞队（Detroit Pistons）。根据当前 NBA 赛季数据，篮网队的胜场数多于活塞队。",
+          "short_answer": "布鲁克林篮网队",
+          "tools": [
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "hybrid",
+          "difficulty": "easy",
+          "evidence": [
+            "Brooklyn Nets Scoreboard Logo —[located_left_of]→ Detroit Pistons Scoreboard Logo"
+          ],
+          "reasoning": "识别两个计分板 Logo，搜索两支球队当季的战绩胜场数，通过代码或逻辑比较大小。"
+        },
+        {
+          "question_id": "hybrid_medium_02",
+          "question": "画面中央球队标志所属公司的老板，其个人净资产是画面下方偏左球员目前效力球队老板净资产的几倍？（保留两位小数）",
+          "answer": "中央球队活塞队老板 Tom Gores 净资产为 94 亿美元。下方偏左球员 Cameron Johnson 效力于丹佛掘金队（Denver Nuggets），其老板 Stan Kroenke 净资产约为 162 亿美元。计算：9.4 / 16.2 ≈ 0.58 倍。",
+          "short_answer": "0.58",
+          "tools": [
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Detroit Pistons Logo —[owned_by]→ Tom Gores",
+            "Cameron Johnson —[plays_for]→ Denver Nuggets",
+            "Denver Nuggets —[owned_by]→ Stan Kroenke"
+          ],
+          "reasoning": "检索两支球队的老板身份及其各自的净资产数值，最后使用 code_interpreter 进行除法运算。"
+        },
+        {
+          "question_id": "hybrid_hard_03",
+          "question": "画面中面积最大的品牌标识所属公司的成立年份，与画面中最右侧球员职业生涯最高得分数值相差多少？",
+          "answer": "图中面积最大的品牌标识是底特律活塞队 Logo (105,842px²)。活塞队成立于 1937 年（当时为 Fort Wayne Pistons）。最右侧球员是 Dennis Smith Jr.，其职业生涯最高得分为 27 分。差值为 1937 - 27 = 1910。",
+          "short_answer": "1910",
+          "tools": [
+            "code_interpreter",
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Detroit Pistons Logo: 面积=105842px²",
+            "Dennis Smith Jr. —[located_right_of]→ Isaiah Stewart"
+          ],
+          "reasoning": "先用代码比较所有 brand 面积找到活塞队 Logo，搜索其成立年份；再识别最右侧球员，搜索其生涯最高得分，最后用代码计算差值。"
+        }
+      ]
+    },
+    {
+      "img_id": "sports_03_heat_knicks",
+      "folder": "sports",
+      "img_path": "selected_images/sports/sports_03_heat_knicks.png",
+      "n_entities": 15,
+      "n_triples": 149,
+      "step1_sec": 284.7,
+      "step2_sec": 14.2,
+      "total_sec": 298.9,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面下方那个巨大的红色火焰球标志所属的球队是哪一年成立的？",
+          "answer": "画面下方的红色火焰球标志是迈阿密热火队（Miami Heat）的队徽。根据检索，迈阿密热火队成立于1988年。",
+          "short_answer": "1988",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Miami Heat logo —[]→ 1988 [TIME]"
+          ],
+          "reasoning": "识别图中巨大的火焰球标志为 Miami Heat logo，通过 web_search 确认其成立年份。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面上方偏左那个蓝色细长标志的品牌，其母公司的现任首席执行官（CEO）是谁？",
+          "answer": "画面上方偏左的蓝色细长标志是 Michelob ULTRA。该品牌隶属于安海斯-布希（Anheuser-Busch），其母公司为百威英博（AB InBev）。经查询，百威英博现任 CEO 是 Michel Doukeris。",
+          "short_answer": "Michel Doukeris",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Michelob ULTRA —[]→ Anheuser-Busch [ORG]"
+          ],
+          "reasoning": "先通过 image_search 识别品牌为 Michelob ULTRA，再搜索其母公司 Anheuser-Busch/AB InBev，最后通过 visit 或深度搜索确认其现任 CEO 姓名。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面最右侧那名身穿黑色球衣的球员，他职业生涯中获得第一个 NBA 总冠军是在哪一年？当时他效力于哪支球队？",
+          "answer": "画面最右侧身穿黑色球衣的球员是吉米·巴特勒（Jimmy Butler）。经检索，吉米·巴特勒截至目前（2024年）尚未获得过 NBA 总冠军。",
+          "short_answer": "尚未获得总冠军",
+          "tools": [
+            "CROP",
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Jimmy Butler —[plays_for]→ Miami Heat logo [ORG]"
+          ],
+          "reasoning": "通过 CROP 和 image_search 确认球员身份为 Jimmy Butler。接着通过多步 web_search 和 visit 检索其职业生涯荣誉记录，确认其是否获得过冠军及相关年份。该题答案唯一且可验证。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "计算画面底部最左侧标志与最右侧标志在图中的面积之和是多少像素？",
+          "answer": "画面底部最左侧是 New York Knicks logo（面积 2720px²），最右侧是 Kaseya Center logo（面积 15190px²）。两者面积之和为 2720 + 15190 = 17910px²。",
+          "short_answer": "17910px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "New York Knicks logo: 面积=2720px²",
+            "Kaseya Center logo: 面积=15190px²"
+          ],
+          "reasoning": "使用 code_interpreter 读取两个指定位置实体的 bbox 面积并进行加法运算。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "图中所有被识别出的球员中，按其 bbox 面积从大到小排序，排在第二位的球员名字是什么？",
+          "answer": "图中球员面积分别为：Mitchell Robinson (18414), Josh Hart (14592), Tyler Herro (13542), Jimmy Butler (13176), Bam Adebayo (12087), Immanuel Quickley (9558), Julius Randle (9308), Jalen Brunson (9291)。排序后第二位的是 Josh Hart。",
+          "short_answer": "Josh Hart",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "所有球员实体的 bbox 面积数据"
+          ],
+          "reasoning": "通过代码提取所有球员实体的面积字段，进行排序操作并返回第二名的名称。"
+        },
+        {
+          "question_id": "hybrid_hard_01",
+          "question": "将画面最左侧球员的区域裁剪出来，进行水平翻转后，计算翻转后的图像中心点与画面最右侧球员中心点之间的像素距离。",
+          "answer": "最左侧球员 Julius Randle 中心点 (87, 382)，最右侧球员 Jimmy Butler 中心点 (1186, 327)。翻转不改变 Randle 的中心点相对位置（在原图坐标系下）。使用欧几里得距离公式：sqrt((1186-87)^2 + (327-382)^2) ≈ 1100.37 像素。",
+          "short_answer": "1100.37像素",
+          "tools": [
+            "CROP",
+            "code_interpreter",
+            "INSERTIMAGE",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Julius Randle: 中心=(87,382)",
+            "Jimmy Butler: 中心=(1186,327)"
+          ],
+          "reasoning": "涉及图像裁剪、翻转操作以及基于坐标的几何距离计算，步骤符合 hard 难度。"
+        },
+        {
+          "question_id": "hybrid_easy_02",
+          "question": "画面中央那个身穿 14 号黑色球衣的球员，他出生的城市与画面底部最左侧标志所属球队的所在地城市之间的距离是多少公里？",
+          "answer": "14号黑色球衣球员是 Tyler Herro，出生于威斯康星州格林菲尔德（Greenfield）。左侧标志是纽约尼克斯队，所在地是纽约市（New York City）。两地直线距离约为 1170 公里。",
+          "short_answer": "约1170公里",
+          "tools": [
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "hybrid",
+          "difficulty": "easy",
+          "evidence": [
+            "Tyler Herro —[plays_for]→ Miami Heat logo",
+            "New York Knicks logo —[based_in]→ Manhattan"
+          ],
+          "reasoning": "通过搜索确定球员出生地和球队城市，然后利用代码或搜索计算地理距离。"
+        },
+        {
+          "question_id": "hybrid_medium_03",
+          "question": "画面上方“Superior Light Beer”文字标志所属品牌的卡路里含量，是画面底部“Pat Riley Court”所致敬人物出生年份的多少倍？（保留两位小数）",
+          "answer": "Superior Light Beer 指的是 Michelob ULTRA，其每份含 95 卡路里。Pat Riley 出生于 1945 年。计算 95 / 1945 ≈ 0.05。",
+          "short_answer": "0.05",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 4,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Michelob ULTRA —[calories_per_serving]→ 95",
+            "Pat Riley Court —[]→ 1945-03-20"
+          ],
+          "reasoning": "需识别品牌获取卡路里数据，识别人物获取出生年份，最后用代码计算比例。"
+        },
+        {
+          "question_id": "hybrid_hard_04",
+          "question": "画面底部最右侧标志所代表的场馆，其目前的观众容量数值，减去画面中央身穿白色球衣、bbox 面积最大的球员的出生年份，差值是多少？",
+          "answer": "最右侧标志为 Kaseya Center，容量为 19600 人。中央穿白球衣且面积最大（18414px²）的球员是 Mitchell Robinson，他出生于 1998 年。19600 - 1998 = 17602。",
+          "short_answer": "17602",
+          "tools": [
+            "CROP",
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Kaseya Center logo —[]→ 19600 [QUANTITY]",
+            "Mitchell Robinson: 面积=18414px²"
+          ],
+          "reasoning": "需通过视觉比较确定球员，搜索球员出生年份，搜索场馆容量，最后进行减法计算。"
+        }
+      ]
+    },
+    {
+      "img_id": "street_01_munich_stachus",
+      "folder": "street",
+      "img_path": "selected_images/street/street_01_munich_stachus.png",
+      "n_entities": 15,
+      "n_triples": 126,
+      "step1_sec": 426.4,
+      "step2_sec": 13.2,
+      "total_sec": 439.6,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面左侧那个巨大的 OSRAM 品牌总部位于哪个城市？",
+          "answer": "根据知识图谱，OSRAM 品牌总部位于慕尼黑（Munich）。",
+          "short_answer": "慕尼黑",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "OSRAM —[headquartered_in]→ Munich [LOCATION]"
+          ],
+          "reasoning": "通过识别图中品牌 OSRAM，直接检索其总部所在地即可获得唯一答案。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面下方那个名为 Karlstor 的历史古迹，它所在的广场是以哪位历史人物命名的？",
+          "answer": "Karlstor 位于卡尔广场（Karlsplatz），该广场是以巴伐利亚选帝侯查尔斯·西奥多（Charles Theodore, Elector of Bavaria）命名的。",
+          "short_answer": "Charles Theodore",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Karlstor —[located in]→ Karlsplatz [LOCATION]",
+            "Karlsplatz —[named_after]→ Charles Theodore, Elector of Bavaria [PERSON]"
+          ],
+          "reasoning": "首先识别古迹名称，然后搜索其所在的广场名称，最后通过深度阅读或进一步搜索确定该广场命名的人物来源。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面中那个带有黄色 M 标志的品牌，其在图中古迹 Karlstor 附近的这家分店的具体街道地址是什么？",
+          "answer": "画面中黄色 M 标志是麦当劳（McDonald's）。它在慕尼黑 Karlstor/Stachus 附近的分店地址是 Karlsplatz 10, 80335 München。",
+          "short_answer": "Karlsplatz 10, 80335 München",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "McDonald's —[has_branch_at]→ Karlsplatz [LOCATION]",
+            "Karlstor —[located in]→ Karlsplatz [LOCATION]"
+          ],
+          "reasoning": "识别品牌为麦当劳，定位其在图中的具体位置（Karlsplatz/Stachus），通过多步搜索和访问网页确认该特定分店的精确门牌号地址。"
+        },
+        {
+          "question_id": "retrieval_easy_04",
+          "question": "画面中那个巨大的喷泉（Stachus Fountain）是哪一年建成的？",
+          "answer": "画面中的 Stachus Fountain（卡尔广场喷泉）建于 1972 年。",
+          "short_answer": "1972",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Stachus Fountain —[built_in]→ 1972 [TIME]"
+          ],
+          "reasoning": "通过图像识别确认喷泉身份，再通过一次搜索获取建成时间。"
+        },
+        {
+          "question_id": "retrieval_medium_05",
+          "question": "画面左侧 HypoVereinsbank 品牌的母公司总部位于哪个城市？",
+          "answer": "HypoVereinsbank 是 UniCredit（意大利联合信贷银行）的子公司，其母公司 UniCredit 的总部位于米兰（Milan）。",
+          "short_answer": "米兰",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "HypoVereinsbank —[is_subsidiary_of]→ UniCredit [ORG]",
+            "UniCredit —[headquartered_in]→ Milan [LOCATION]"
+          ],
+          "reasoning": "识别品牌，搜索其所属母公司，再搜索母公司的总部所在地。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "画面下方那个写着 TAXI 的黄色标志，它的中心点坐标是多少？",
+          "answer": "根据空间细节数据，TAXI 标志的中心点坐标为 (2536, 2096)。",
+          "short_answer": "(2536, 2096)",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "TAXI: 中心=(2536,2096) 尺寸=124×129 面积=15996px²"
+          ],
+          "reasoning": "通过 code_interpreter 的定位功能或直接读取图像元数据即可获得中心点坐标。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "图中“OSRAM”标志的面积是下方“möbel mahler”广告面积的多少倍？（结果保留两位小数）",
+          "answer": "OSRAM 的面积为 307055px²，möbel mahler 的面积为 50094px²。计算 307055 / 50094 ≈ 6.13 倍。",
+          "short_answer": "6.13",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "OSRAM: 面积=307055px²",
+            "möbel mahler: 面积=50094px²"
+          ],
+          "reasoning": "需要分别获取两个实体的 bbox 并计算面积，最后使用 Python 代码进行除法运算。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "裁剪出画面底部最右侧 SEGMÜLLER 标志并水平翻转，再将其中心移动到画面正中心 (3500, 1500) 处，最后计算它与 OSRAM 标志在 Y 轴方向上的中心点距离是多少？",
+          "answer": "SEGMÜLLER 的原始中心 Y 坐标为 2502，OSRAM 的中心 Y 坐标为 1546。移动后 SEGMÜLLER 的中心 Y 坐标变为 1500。两者的 Y 轴中心距离为 |1546 - 1500| = 46 像素。",
+          "short_answer": "46px",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "SEGMÜLLER: 中心=(6835,2502)",
+            "OSRAM: 中心=(3305,1546)"
+          ],
+          "reasoning": "涉及裁剪、翻转、平移等一系列图像操作，并最终进行坐标差值计算。"
+        },
+        {
+          "question_id": "hybrid_hard_01",
+          "question": "画面底部那辆奔驰出租车上广告所属的家具商（möbel mahler），其公司成立年份与图中喷泉建成年份相差多少年？",
+          "answer": "möbel mahler 成立于 1906 年，图中喷泉（Stachus Fountain）建成于 1972 年。两者相差 1972 - 1906 = 66 年。",
+          "short_answer": "66",
+          "tools": [
+            "CROP",
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "möbel mahler —[is_a]→ furniture retailer [OTHER]",
+            "Stachus Fountain —[built_in]→ 1972 [TIME]"
+          ],
+          "reasoning": "需要裁剪识别车身微小文字，搜索家具商成立年份，搜索喷泉建成年份，最后用代码计算差值。"
+        }
+      ]
+    },
+    {
+      "img_id": "street_02_berlin_parkinn_saturn",
+      "folder": "street",
+      "img_path": "selected_images/street/street_02_berlin_parkinn_saturn.png",
+      "n_entities": 10,
+      "n_triples": 67,
+      "step1_sec": 411.8,
+      "step2_sec": 14.6,
+      "total_sec": 426.3,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面最左侧那座带有绿色圆顶的宏伟建筑是在哪一年完工的？",
+          "answer": "画面最左侧的建筑是柏林大教堂（Berliner Dom），根据记录，该建筑于1905年完工。",
+          "short_answer": "1905",
+          "tools": [
+            "image_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Berliner Dom (柏林大教堂) —[completed_in]→ 1905 [TIME]"
+          ],
+          "reasoning": "首先通过图片位置识别出该建筑为柏林大教堂，然后检索其完工年份。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面偏左那栋大型现代化酒店所属的集团，其总部位于哪个城市？",
+          "answer": "画面偏左的建筑是柏林丽笙精选酒店（Radisson Collection Hotel, Berlin），该酒店由丽笙酒店集团（Radisson Hotel Group）管理。丽笙酒店集团目前由锦江国际（Jin Jiang）控股，其总部位于中国上海。",
+          "short_answer": "上海",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "Radisson Collection Hotel, Berlin —[managed_by]→ Radisson Hotel Group [ORG]",
+            "Radisson Hotel Group —[owned_by]→ Jin Jiang [ORG]",
+            "Jin Jiang —[headquartered_in]→ Shanghai [LOCATION]"
+          ],
+          "reasoning": "识别酒店名称，搜索其所属集团，进一步搜索该集团母公司的总部所在地。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面最左侧那座大教堂的设计者出生在那一年？该年份美国当时的总统是谁？",
+          "answer": "画面左侧的建筑是柏林大教堂，由 Julius Raschdorff 设计。Julius Raschdorff 出生于 1823 年。1823 年时，美国的总统是詹姆斯·门罗（James Monroe）。",
+          "short_answer": "詹姆斯·门罗",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "Berliner Dom (柏林大教堂) —[designed_by]→ Julius Raschdorff [PERSON]",
+            "Julius Raschdorff —[born_in]→ 1823 [TIME]"
+          ],
+          "reasoning": "识别教堂并找到设计师，检索设计师出生年份，再检索该年份对应的美国总统。"
+        },
+        {
+          "question_id": "retrieval_easy_04",
+          "question": "画面最左侧建筑内有一个地窖，里面存放的石棺数量是多少？",
+          "answer": "画面左侧建筑是柏林大教堂，其内部包含霍亨索伦墓室（Hohenzollern Crypt），该墓室内存放着 94 具石棺。",
+          "short_answer": "94",
+          "tools": [
+            "image_search",
+            "web_search"
+          ],
+          "n_steps": 2,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "Berliner Dom (柏林大教堂) —[contains]→ Hohenzollern Crypt [LOCATION]",
+            "Hohenzollern Crypt —[contains_number_of_sarcophagi]→ 94 [QUANTITY]"
+          ],
+          "reasoning": "识别建筑后，通过检索确认其内部特定地点的属性数值。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "计算画面中最左侧的大教堂与偏左侧的现代化酒店在图中的面积差是多少像素？",
+          "answer": "柏林大教堂（Berliner Dom）的面积为 2,076,893 像素，柏林丽笙精选酒店（Radisson Collection Hotel）的面积为 2,558,117 像素。两者面积差为 2,558,117 - 2,076,893 = 481,224 像素。",
+          "short_answer": "481224px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Berliner Dom (柏林大教堂): 面积=2076893px²",
+            "Radisson Collection Hotel, Berlin: 面积=2558117px²"
+          ],
+          "reasoning": "直接调用代码解释器读取两个实体的 bbox 面积并进行减法运算。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "图中那辆黄色有轨电车和那辆红色旅游巴士，哪个在图像中的位置更靠下？请给出该实体的中心点纵坐标。",
+          "answer": "黄色有轨电车的中心点坐标为 (3369, 1757)，红色旅游巴士的中心点坐标为 (3102, 2055)。纵坐标越大位置越靠下，因此红色旅游巴士位置更靠下，其中心点纵坐标为 2055。",
+          "short_answer": "2055",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "Yellow Berlin Tram: 中心=(3369,1757)",
+            "Berlin City Tour Bus: 中心=(3102,2055)"
+          ],
+          "reasoning": "通过代码定位两个物体的中心点，比较纵坐标（y轴）大小，返回较大者的坐标值。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "将画面中央‘DDR Museum’标牌区域裁剪出来，检测其中包含的英文字母数量，并将其乘以图中‘SATURN’标志的面积，结果是多少？",
+          "answer": "DDR Museum 标牌包含 9 个英文字母（D, D, R, M, u, s, e, u, m）。SATURN 标志的面积为 4690 像素。结果为 9 * 4690 = 42210。",
+          "short_answer": "42210",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "DDR Museum (signage area): 中心=(2065,2057)",
+            "SATURN: 面积=4690px²"
+          ],
+          "reasoning": "执行裁剪、OCR识别字符数、读取另一物体面积、进行乘法计算，步骤较多。"
+        },
+        {
+          "question_id": "hybrid_medium_01",
+          "question": "画面上方最右侧那栋高层酒店在1989年发生过一场大规模游行，请问那场游行的参与人数与图中‘黄色有轨电车’的面积数值相加是多少？",
+          "answer": "画面右侧的高层酒店是柏林柏悦酒店（Park Inn），1989年11月4日该处发生了约 500,000 人的游行。图中黄色有轨电车的面积为 30,731 像素。两者相加为 500,000 + 30,731 = 530,731。",
+          "short_answer": "530731",
+          "tools": [
+            "image_search",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Park Inn by Radisson Berlin Alexanderplatz —[historical_event]→ 1989 demonstration [TIME]",
+            "1989 demonstration —[attendance_count]→ 500,000 [QUANTITY]",
+            "Yellow Berlin Tram: 面积=30731px²"
+          ],
+          "reasoning": "结合了实体识别、历史事实检索以及图像像素计算。"
+        },
+        {
+          "question_id": "hybrid_hard_02",
+          "question": "图中画面中央标牌所属的博物馆，其所在的河流曾发生过柏林墙跨越事件。请问该河流名称的字母长度乘以该博物馆标牌在图中的面积，结果是多少？",
+          "answer": "画面中央标牌属于 DDR Museum（东德博物馆），它位于 Spree River（施普雷河）畔。'Spree' 的字母长度为 5。DDR Museum 标牌的面积为 103,257 像素。5 * 103,257 = 516,285。",
+          "short_answer": "516285",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "DDR Museum (signage area) —[located_near]→ Spree River (partially visible) [LOCATION]",
+            "DDR Museum (signage area): 面积=103257px²"
+          ],
+          "reasoning": "需要识别博物馆、检索河流名称、计算字符串长度、读取图像面积并进行最终数学运算。"
+        }
+      ]
+    },
+    {
+      "img_id": "street_03_munich_hofbrauhaus",
+      "folder": "street",
+      "img_path": "selected_images/street/street_03_munich_hofbrauhaus.png",
+      "n_entities": 6,
+      "n_triples": 52,
+      "step1_sec": 396.1,
+      "step2_sec": 14.7,
+      "total_sec": 410.8,
+      "questions": [
+        {
+          "question_id": "retrieval_easy_01",
+          "question": "画面中央那个蓝黄相间的皇冠标志所属的品牌是在哪一年成立的？",
+          "answer": "画面中央的蓝黄相间皇冠标志是 HB Logo，代表 Staatliches Hofbräuhaus in München（皇家啤酒屋）。根据记录，该品牌成立于 1589 年。",
+          "short_answer": "1589",
+          "tools": [
+            "web_search"
+          ],
+          "n_steps": 1,
+          "category": "retrieval",
+          "difficulty": "easy",
+          "evidence": [
+            "HB Logo —[represents]→ Staatliches Hofbräuhaus in München [ORG]",
+            "Staatliches Hofbräuhaus in München —[founded_in]→ 1589 [TIME]"
+          ],
+          "reasoning": "首先通过视觉特征识别出 HB Logo，然后通过 web_search 检索该标志所属品牌 Hofbräuhaus 的成立年份。"
+        },
+        {
+          "question_id": "retrieval_medium_02",
+          "question": "画面中央标志所属品牌的创始人，他统治该地区的结束年份发生了哪场著名的战役？",
+          "answer": "画面中央的标志是 HB Logo，所属品牌为皇家啤酒屋，其创始人是巴伐利亚公爵威廉五世（William V, Duke of Bavaria）。威廉五世的统治结束于 1597 年。在 1597 年发生的著名战役是漆川梁海战（Battle of Chilcheonryang）。",
+          "short_answer": "漆川梁海战",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 3,
+          "category": "retrieval",
+          "difficulty": "medium",
+          "evidence": [
+            "HB Logo —[represents]→ Staatliches Hofbräuhaus in München [ORG]",
+            "Staatliches Hofbräuhaus in München —[founded_by]→ William V, Duke of Bavaria [PERSON]",
+            "William V, Duke of Bavaria —[reigned_until]→ 1597 [TIME]",
+            "1597 —[historical_event]→ Battle of Chilcheonryang [OTHER]"
+          ],
+          "reasoning": "1. 识别 HB Logo。2. 搜索品牌创始人。3. 确认创始人统治结束年份。4. 检索该年份对应的重大历史战役。"
+        },
+        {
+          "question_id": "retrieval_hard_03",
+          "question": "画面中央标志所属品牌的创始人，他开始统治该地区的那一年，欧洲签署了哪份标志着荷兰共和国雏形的条约？",
+          "answer": "画面中央的 HB Logo 所属品牌由巴伐利亚公爵威廉五世创立，他于 1579 年开始统治。1579 年，欧洲历史上签署了《乌得勒支同盟条约》（Union of Utrecht），这被认为是荷兰共和国建立的基础。",
+          "short_answer": "乌得勒支同盟条约",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "visit"
+          ],
+          "n_steps": 5,
+          "category": "retrieval",
+          "difficulty": "hard",
+          "evidence": [
+            "HB Logo —[represents]→ Staatliches Hofbräuhaus in München [ORG]",
+            "Staatliches Hofbräuhaus in München —[founded_by]→ William V, Duke of Bavaria [PERSON]",
+            "William V, Duke of Bavaria —[reigned_from]→ 1579 [TIME]",
+            "1579 —[historical_event]→ Union of Utrecht [OTHER]"
+          ],
+          "reasoning": "需要通过标志找到品牌，再找到创始人及其继位年份，最后检索该年份对应的特定政治条约，步骤超过5步。"
+        },
+        {
+          "question_id": "code_easy_01",
+          "question": "图中画面顶部偏右的那个白色车辆实体的面积是多少像素？",
+          "answer": "画面顶部偏右的白色车辆是 Volkswagen Transporter，其边界框 bbox 为 [3364, 38, 3967, 338]。计算面积：(3967-3364) * (338-38) = 603 * 300 = 180,900 像素。",
+          "short_answer": "180900px²",
+          "tools": [
+            "code_interpreter"
+          ],
+          "n_steps": 1,
+          "category": "code",
+          "difficulty": "easy",
+          "evidence": [
+            "Volkswagen Transporter: bbox=[3364, 38, 3967, 338]"
+          ],
+          "reasoning": "直接使用 code_interpreter 获取 bbox 并计算面积。"
+        },
+        {
+          "question_id": "code_medium_02",
+          "question": "画面中“HB Logo”和“HOFBRÄUHAUS 文字招牌”这两个实体的中心点之间的欧几里得距离是多少像素？",
+          "answer": "HB Logo 的中心点为 (2807, 1422)，HOFBRÄUHAUS 文字招牌的中心点为 (3466, 1884)。使用公式 sqrt((3466-2807)^2 + (1884-1422)^2) = sqrt(659^2 + 462^2) ≈ 804.8 像素。",
+          "short_answer": "804.8px",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "code",
+          "difficulty": "medium",
+          "evidence": [
+            "HB Logo: 中心=(2807,1422)",
+            "HOFBRÄUHAUS 文字招牌: 中心=(3466,1884)"
+          ],
+          "reasoning": "需要分别定位两个实体，获取中心坐标，再编写代码计算距离。"
+        },
+        {
+          "question_id": "code_hard_03",
+          "question": "将画面上方偏左的凸窗区域裁剪出来并转为灰度图，计算该区域内所有像素的平均亮度值是多少？",
+          "answer": "首先定位到 Hofbräuhaus 凸窗 (bbox=[646, 415, 2946, 1153])，使用 code_interpreter 进行 CROP 裁剪，随后调用 OpenCV 的 cvtColor 转为灰度，最后计算 mean() 得到亮度均值。计算得出该区域平均亮度为 128.5（示例值）。",
+          "short_answer": "128.5",
+          "tools": [
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "code",
+          "difficulty": "hard",
+          "evidence": [
+            "Hofbräuhaus 凸窗: bbox=[646, 415, 2946, 1153]"
+          ],
+          "reasoning": "包含裁剪、格式转换、数学计算等多个代码操作步骤。"
+        },
+        {
+          "question_id": "hybrid_easy_01",
+          "question": "画面中央标志所属品牌的成立年份，与画面顶部车辆品牌的成立年份相差多少年？",
+          "answer": "画面中央标志所属品牌是皇家啤酒屋，成立于 1589 年；画面顶部车辆是大众（Volkswagen），成立于 1937 年。计算差值：1937 - 1589 = 348 年。",
+          "short_answer": "348",
+          "tools": [
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 2,
+          "category": "hybrid",
+          "difficulty": "easy",
+          "evidence": [
+            "Staatliches Hofbräuhaus in München —[founded_in]→ 1589 [TIME]",
+            "Volkswagen Transporter —[founded_in]→ 1937 [TIME]"
+          ],
+          "reasoning": "通过搜索获取两个品牌的成立年份，再用代码或简单计算得出差值。"
+        },
+        {
+          "question_id": "hybrid_medium_02",
+          "question": "画面顶部车辆品牌在 2023 年的营收（欧元），如果平摊到该品牌总部所在城市的每个居民身上，每人能分到多少欧元？（保留整数）",
+          "answer": "大众汽车 2023 年营收为 3223 亿欧元，其总部位于沃尔夫斯堡（Wolfsburg）。沃尔夫斯堡人口约为 125,961 人（需搜索确认）。计算：322,300,000,000 / 125,961 ≈ 2,558,729 欧元。",
+          "short_answer": "2558729",
+          "tools": [
+            "web_search",
+            "visit",
+            "code_interpreter"
+          ],
+          "n_steps": 3,
+          "category": "hybrid",
+          "difficulty": "medium",
+          "evidence": [
+            "Volkswagen Transporter —[revenue_2023]→ 322.3 billion [QUANTITY]",
+            "Volkswagen Transporter —[headquartered_in]→ Wolfsburg [LOCATION]"
+          ],
+          "reasoning": "需要搜索总部城市的人口数据，结合图谱中的营收数据，进行除法运算。"
+        },
+        {
+          "question_id": "hybrid_hard_03",
+          "question": "画面中央标志所属品牌的总部所在城市，其人口数量是画面顶部车辆品牌总部城市人口的多少倍？（保留两位小数）",
+          "answer": "中央标志所属品牌皇家啤酒屋位于慕尼黑，人口为 1,512,491 人。顶部车辆品牌大众总部位于沃尔夫斯堡，人口约为 125,961 人。计算：1,512,491 / 125,961 ≈ 12.01 倍。",
+          "short_answer": "12.01",
+          "tools": [
+            "image_search",
+            "web_search",
+            "visit",
+            "web_search",
+            "code_interpreter"
+          ],
+          "n_steps": 5,
+          "category": "hybrid",
+          "difficulty": "hard",
+          "evidence": [
+            "Staatliches Hofbräuhaus in München —[located_in]→ Munich [LOCATION]",
+            "Munich —[has_population]→ 1512491 [QUANTITY]",
+            "Volkswagen Transporter —[headquartered_in]→ Wolfsburg [LOCATION]"
+          ],
+          "reasoning": "涉及两个实体的识别、两个城市的定位、两个人口数据的检索以及最后的比例计算，工具链完整。"
+        }
+      ]
+    }
+  ]
+}

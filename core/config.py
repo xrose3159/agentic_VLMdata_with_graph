@@ -6,11 +6,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ============================================================
-# VLM API
+# VLM API（图片调用）
 # ============================================================
 API_KEY    = os.environ.get("API_KEY", "")
 MODEL_NAME = os.environ.get("MODEL_NAME", "qwen-vl-max")
 BASE_URL   = os.environ.get("BASE_URL", "")
+
+# ============================================================
+# Text LLM API（纯文本调用，不传图片时自动使用）
+# 留空则 fallback 到 VLM API
+# ============================================================
+TEXT_LLM_API_KEY    = os.environ.get("TEXT_LLM_API_KEY", "")
+TEXT_LLM_MODEL_NAME = os.environ.get("TEXT_LLM_MODEL_NAME", "")
+TEXT_LLM_BASE_URL   = os.environ.get("TEXT_LLM_BASE_URL", "")
 
 # ============================================================
 # 外部工具 API
@@ -26,8 +34,9 @@ JINA_TIMEOUT    = 15  # 秒
 # 路径
 # ============================================================
 SOURCE_IMAGE_DIR   = "images"
+IMAGE_DIR          = os.environ.get("IMAGE_DIR", SOURCE_IMAGE_DIR)
+FILTERED_IMAGE_DIR = IMAGE_DIR  # 向后兼容旧脚本
 OUTPUT_ROOT        = "output"
-FILTERED_IMAGE_DIR = os.path.join(OUTPUT_ROOT, "images")
 ENTITY_DIR         = os.path.join(OUTPUT_ROOT, "entities")
 QUESTION_DIR       = os.path.join(OUTPUT_ROOT, "questions")
 FINAL_DIR          = os.path.join(OUTPUT_ROOT, "final")

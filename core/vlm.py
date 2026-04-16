@@ -8,12 +8,26 @@ from typing import Optional, Any
 import httpx
 from openai import OpenAI
 
-from .config import API_KEY, BASE_URL, MODEL_NAME, VLM_MAX_RETRIES, VLM_TIMEOUT, RATE_LIMIT_DELAY
+from .config import (
+    API_KEY, BASE_URL, MODEL_NAME,
+    TEXT_LLM_API_KEY, TEXT_LLM_BASE_URL, TEXT_LLM_MODEL_NAME,
+    VLM_MAX_RETRIES, VLM_TIMEOUT, RATE_LIMIT_DELAY,
+)
 
 # VLM API 可直连不走代理，但 SerpAPI / Jina 需要代理。
 # 用 trust_env=False 让 httpx 忽略代理环境变量，仅对 VLM client 生效。
 _vlm_http = httpx.Client(trust_env=False)
-client = OpenAI(api_key=API_KEY, base_url=BASE_URL, http_client=_vlm_http)
+vlm_client = OpenAI(api_key=API_KEY, base_url=BASE_URL, http_client=_vlm_http)
+
+# 纯文本 LLM client（配置了则用独立 endpoint，否则 fallback 到 VLM client）
+if TEXT_LLM_API_KEY and TEXT_LLM_BASE_URL and TEXT_LLM_MODEL_NAME:
+    _text_http = httpx.Client(trust_env=False)
+    text_client = OpenAI(api_key=TEXT_LLM_API_KEY, base_url=TEXT_LLM_BASE_URL, http_client=_text_http)
+else:
+    text_client = None
+
+# 向后兼容
+client = vlm_client
 
 
 def call_vlm(
@@ -42,18 +56,34 @@ def call_vlm(
 
     messages = [{"role": "system", "content": system_prompt}, user_msg]
 
+    # 判断是否包含图片：image_b64 参数 或 user_content list 里有 image_url
+    has_image = image_b64 is not None
+    if not has_image and isinstance(user_content, list):
+        has_image = any(
+            isinstance(item, dict) and item.get("type") == "image_url"
+            for item in user_content
+        )
+
+    # 纯文本调用走 text_client（如果配置了）
+    if not has_image and text_client is not None:
+        active_client = text_client
+        active_model = TEXT_LLM_MODEL_NAME
+    else:
+        active_client = vlm_client
+        active_model = MODEL_NAME
+
     for attempt in range(1, max_retries + 1):
         try:
             kwargs = dict(
-                model=MODEL_NAME,
+                model=active_model,
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 timeout=VLM_TIMEOUT,
             )
-            if "thinking" in MODEL_NAME.lower():
+            if "thinking" in active_model.lower():
                 kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
-            resp = client.chat.completions.create(**kwargs)
+            resp = active_client.chat.completions.create(**kwargs)
             time.sleep(RATE_LIMIT_DELAY)
             return (resp.choices[0].message.content or "").strip()
         except Exception as e:

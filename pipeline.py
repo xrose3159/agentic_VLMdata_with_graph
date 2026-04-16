@@ -1,18 +1,14 @@
 """
 Agentic MLLM 训练数据生成 Pipeline 编排器。
 
-四步流程：
-  1. 筛选高信息密度图片（~50张）
-  2. 实体提取 + 知识图谱扩展
-  3. 分层生成问题（L1:8 + L2:6 + L3:3 = 17题/张）
-  4. 模糊化验证与修正
+每张图独立走完 Step2→Step3，互不影响。
+worker 跑完一张图立即取下一张，不等其他 worker。
 
 用法：
-    python pipeline.py                        # 运行全部4步
-    python pipeline.py --start-from 2         # 从第2步开始
-    python pipeline.py --only 1               # 只运行第1步
-    python pipeline.py --workers 8            # 设置并发数
-    python pipeline.py --limit 20             # 第一步只处理前20张图片
+    python pipeline.py                        # 运行全部图片
+    python pipeline.py --workers 10           # 10 并发
+    python pipeline.py --source selected_images/retail/  # 指定图片目录
+    python pipeline.py --limit 30             # 只跑前 30 张
 """
 
 import argparse
@@ -26,153 +22,133 @@ from core.logging_setup import get_logger
 logger = get_logger("pipeline", "pipeline.log")
 
 
-def _run_step2_step3_pipeline(workers: int):
-    """step2 和 step3 流水线执行：step2 完成一张图就立即提交 step3。"""
-    from step2_enrich import enrich_image
-    from step3_generate import generate_questions
-    from core.config import FILTERED_IMAGE_DIR, ENTITY_DIR, TAVILY_API_KEY
+def _process_one_image(img_path: str) -> dict:
+    """单张图的完整 pipeline：Step2(enrich) → Step3(generate)。
 
-    patterns = ["*.jpg", "*.jpeg", "*.png", "*.webp"]
-    img_paths = []
-    for p in patterns:
-        img_paths.extend(glob.glob(os.path.join(FILTERED_IMAGE_DIR, p)))
-    img_paths.sort()
-    logger.info(f"找到 {len(img_paths)} 张筛选后图片")
+    每张图独立执行，互不依赖。返回统计信息。
+    """
+    from step1_graph import enrich_image
+    from step2_generate import generate_questions
+    from core.config import ENTITY_DIR
 
-    if not img_paths:
-        logger.error("没有找到筛选后的图片，请先运行第一步")
-        return
+    img_id = os.path.splitext(os.path.basename(img_path))[0]
+    t0 = time.time()
 
-    # step2 并发数受 Tavily API 限制，step3 无限制
-    step2_workers = min(workers, 3) if TAVILY_API_KEY else workers
-    step3_workers = workers
+    # Step2: 实体提取 + 知识图谱
+    try:
+        result = enrich_image(img_path)
+    except Exception as e:
+        logger.error(f"[{img_id}] Step2 异常: {e}")
+        return {"img_id": img_id, "status": "step2_error", "error": str(e)}
 
-    step3_pool = ThreadPoolExecutor(max_workers=step3_workers)
-    step3_futures = []
+    if result is None:
+        return {"img_id": img_id, "status": "step2_skip"}
 
-    results_step2 = 0
-    results_step3 = 0
+    t_step2 = time.time() - t0
 
-    with ThreadPoolExecutor(max_workers=step2_workers) as step2_pool:
-        step2_futures = {step2_pool.submit(enrich_image, p): p for p in img_paths}
+    # Step3: 问题生成
+    entity_file = os.path.join(ENTITY_DIR, f"{img_id}.json")
+    if not os.path.exists(entity_file):
+        return {"img_id": img_id, "status": "no_entity_file", "step2_time": t_step2}
 
-        for fut in as_completed(step2_futures):
-            img_path = step2_futures[fut]
-            img_id = os.path.splitext(os.path.basename(img_path))[0]
-            try:
-                result = fut.result()
-            except Exception as e:
-                logger.error(f"  [{img_id}] step2 异常: {e}")
-                continue
+    t1 = time.time()
+    try:
+        q_result = generate_questions(entity_file)
+    except Exception as e:
+        logger.error(f"[{img_id}] Step2 异常: {e}")
+        return {"img_id": img_id, "status": "step3_error", "step2_time": t_step2, "error": str(e)}
 
-            if result is None:
-                continue
-            results_step2 += 1
+    t_step3 = time.time() - t1
+    total = time.time() - t0
 
-            # step2 完成后立即提交 step3
-            entity_file = os.path.join(ENTITY_DIR, f"{img_id}.json")
-            if os.path.exists(entity_file):
-                step3_futures.append(step3_pool.submit(generate_questions, entity_file))
+    n_q = sum(len(q_result.get(c, [])) for c in ("retrieval", "code", "hybrid")) if q_result else 0
+    logger.info(f"[{img_id}] 完成 Step2={t_step2:.0f}s Step3={t_step3:.0f}s 总={total:.0f}s 题目={n_q}")
 
-    # 等待所有 step3 任务完成
-    for fut in as_completed(step3_futures):
-        try:
-            r = fut.result()
-            if r is not None:
-                results_step3 += 1
-        except Exception as e:
-            logger.error(f"  step3 异常: {e}")
-
-    step3_pool.shutdown(wait=True)
-
-    logger.info(f"step2 完成: {results_step2}/{len(img_paths)} 张图片")
-    logger.info(f"step3 完成: {results_step3}/{results_step2} 张图片")
-
-    # 聚合最终结果
-    from step3_generate import aggregate_final
-    stats = aggregate_final()
-    logger.info(f"总计 {stats['total_questions']} 道题")
-
-
-def run_pipeline(start_from: int = 1, only: int | None = None, workers: int = 4, limit: int = 0):
-    steps = {
-        1: ("筛选高信息密度图片", "step1_filter"),
-        4: ("模糊化验证", "step4_verify"),
+    return {
+        "img_id": img_id,
+        "status": "ok",
+        "step2_time": t_step2,
+        "step3_time": t_step3,
+        "total_time": total,
+        "n_entities": len(result.get("entities", [])),
+        "n_triples": len(result.get("triples", [])),
+        "n_questions": n_q,
     }
 
-    to_run = [only] if only else list(range(start_from, 5))
+
+def run_pipeline(workers: int = 10, source_dir: str = "", limit: int = 0):
+    from core.config import IMAGE_DIR
+
+    search_dirs = [source_dir] if source_dir else [IMAGE_DIR, "images"]
+    patterns = ["*.jpg", "*.jpeg", "*.png", "*.webp"]
+    img_paths = []
+    for d in search_dirs:
+        if not d or not os.path.isdir(d):
+            continue
+        for p in patterns:
+            img_paths.extend(glob.glob(os.path.join(d, p)))
+            img_paths.extend(glob.glob(os.path.join(d, "**", p), recursive=True))
+        img_paths = list(dict.fromkeys(img_paths))  # 去重保序
+        if img_paths:
+            logger.info(f"图片来源: {d} ({len(img_paths)} 张)")
+            break
+    img_paths.sort()
+
+    if limit > 0:
+        img_paths = img_paths[:limit]
+
+    if not img_paths:
+        logger.error("没有找到图片。请把图片放到 images/ 目录，或用 --source 指定目录")
+        return
 
     logger.info("=" * 60)
-    logger.info("Agentic MLLM 训练数据生成 Pipeline")
-    logger.info(f"将执行步骤: {to_run}  并发数: {workers}  limit: {limit or '无限制'}")
+    logger.info(f"Pipeline 启动: {len(img_paths)} 张图片, {workers} 并发")
+    logger.info("每张图独立走 Step2→Step3，互不等待")
     logger.info("=" * 60)
 
     t0 = time.time()
+    results = []
+    done = 0
 
-    for step_num in to_run:
-        if step_num == 1:
-            logger.info(f"\n{'='*60}")
-            logger.info(f">>> 第 1 步：筛选高信息密度图片")
-            logger.info(f"{'='*60}")
-            ts = time.time()
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_process_one_image, p): p for p in img_paths}
+        for fut in as_completed(futures):
+            done += 1
             try:
-                module = __import__("step1_filter")
-                module.main(workers=workers, limit=limit)
+                r = fut.result()
+                results.append(r)
+                status = r.get("status", "?")
+                img_id = r.get("img_id", "?")
+                if status == "ok":
+                    logger.info(f"[{done}/{len(img_paths)}] {img_id} ✓ "
+                                f"L3={r['n_questions']} ({r['total_time']:.0f}s)")
+                else:
+                    logger.warning(f"[{done}/{len(img_paths)}] {img_id} → {status}")
             except Exception as e:
-                logger.error(f"第 1 步执行失败: {e}")
-                import traceback
-                logger.error(traceback.format_exc())
-                return
-            logger.info(f"第 1 步耗时: {time.time() - ts:.1f}s")
+                logger.error(f"[{done}/{len(img_paths)}] 异常: {e}")
 
-        elif step_num in (2, 3):
-            # step2 和 step3 流水线执行，只处理一次
-            if step_num == 2 or (step_num == 3 and 2 not in to_run):
-                logger.info(f"\n{'='*60}")
-                logger.info(f">>> 第 2+3 步：实体提取 + 问题生成（流水线）")
-                logger.info(f"{'='*60}")
-                ts = time.time()
-                try:
-                    if step_num == 3 and 2 not in to_run:
-                        # 只跑 step3
-                        module = __import__("step3_generate")
-                        module.main(workers=workers)
-                    else:
-                        _run_step2_step3_pipeline(workers=workers)
-                except Exception as e:
-                    logger.error(f"第 2+3 步执行失败: {e}")
-                    import traceback
-                    logger.error(traceback.format_exc())
-                    return
-                logger.info(f"第 2+3 步耗时: {time.time() - ts:.1f}s")
-            # step_num == 3 but 2 is in to_run → already handled above, skip
+    total_time = time.time() - t0
+    ok = [r for r in results if r.get("status") == "ok"]
 
-        elif step_num == 4:
-            logger.info(f"\n{'='*60}")
-            logger.info(f">>> 第 4 步：模糊化验证")
-            logger.info(f"{'='*60}")
-            ts = time.time()
-            try:
-                module = __import__("step4_verify")
-                module.main(workers=workers)
-            except Exception as e:
-                logger.error(f"第 4 步执行失败: {e}")
-                import traceback
-                logger.error(traceback.format_exc())
-                return
-            logger.info(f"第 4 步耗时: {time.time() - ts:.1f}s")
+    logger.info("=" * 60)
+    logger.info(f"Pipeline 完成！")
+    logger.info(f"  总耗时: {total_time:.0f}s ({total_time/60:.1f}min)")
+    logger.info(f"  成功: {len(ok)}/{len(img_paths)} 张图片")
+    logger.info(f"  L3 题目: {sum(r['n_questions'] for r in ok)} 道")
+    logger.info(f"  平均每张: Step2={sum(r['step2_time'] for r in ok)/max(len(ok),1):.0f}s "
+                f"Step3={sum(r['step3_time'] for r in ok)/max(len(ok),1):.0f}s")
+    logger.info("=" * 60)
 
-    total = time.time() - t0
-    logger.info(f"\n{'='*60}")
-    logger.info(f"Pipeline 完成！总耗时: {total:.1f}s")
-    logger.info(f"{'='*60}")
+    # 聚合最终输出
+    from step2_generate import aggregate_final
+    stats = aggregate_final()
+    logger.info(f"聚合完成: {stats['total_questions']} 道题")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Agentic MLLM 训练数据生成 Pipeline")
-    parser.add_argument("--start-from", type=int, default=1, help="从第几步开始（1-4）")
-    parser.add_argument("--only", type=int, default=None, help="只运行某一步")
-    parser.add_argument("--workers", type=int, default=4, help="并发线程数")
-    parser.add_argument("--limit", type=int, default=0, help="第一步只处理前N张图片（0=全部）")
+    parser.add_argument("--workers", type=int, default=10, help="并发数（默认10）")
+    parser.add_argument("--source", type=str, default="", help="图片来源目录")
+    parser.add_argument("--limit", type=int, default=0, help="只处理前 N 张图片")
     args = parser.parse_args()
-    run_pipeline(start_from=args.start_from, only=args.only, workers=args.workers, limit=args.limit)
+    run_pipeline(workers=args.workers, source_dir=args.source, limit=args.limit)
